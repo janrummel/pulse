@@ -277,10 +277,22 @@ class PulseLauncher(App):
             print()
 
             try:
-                # Start Claude interactively in project directory
-                # Context comes from: CLAUDE.md + orchestrator session-start hook
+                # Build initial prompt with project context
+                next_step = _load_project_context(project["name"])
+                if next_step and next_step != "Kein naechster Schritt definiert.":
+                    initial = (
+                        f'Dein aktives Projekt ist "{project["name"]}". '
+                        f"Naechster Schritt: {next_step}"
+                    )
+                else:
+                    initial = (
+                        f'Dein aktives Projekt ist "{project["name"]}". '
+                        f"Was steht an?"
+                    )
+
+                # claude "message" starts interactive mode with initial prompt
                 subprocess.run(
-                    ["claude"],
+                    ["claude", initial],
                     cwd=project_path,
                 )
             except FileNotFoundError:
