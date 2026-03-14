@@ -40,19 +40,20 @@ def _task_icon(status: str) -> str:
 
 def build_overview_panel(db: PulseDB, analyzer: Analyzer) -> Panel:
     """Build the main overview panel with active session info."""
-    # Find the most recent session
-    sessions = db.execute(
-        "SELECT * FROM sessions ORDER BY started_at DESC LIMIT 1"
-    ).fetchall()
+    # Find the most recent session — prefer events table (more reliable)
+    row = db.execute(
+        "SELECT session_id, project_path, MAX(timestamp) as last_ts "
+        "FROM events GROUP BY session_id ORDER BY last_ts DESC LIMIT 1"
+    ).fetchone()
 
-    if not sessions:
+    if not row:
         return Panel("Keine Sessions gefunden.", title="AKTIVE SESSION", border_style="dim")
 
-    session = dict(sessions[0])
-    sid = session["session_id"]
-
-    # Get event counts for this session
+    sid = row["session_id"]
     events = db.get_events_by_session(sid)
+
+    # Try to get session record, fall back to events data
+    session = db.get_session(sid) or {}
     prompts = len([e for e in events if e["event_type"] == "UserPromptSubmit"])
     tool_calls = len([e for e in events if e["event_type"] == "PreToolUse"])
     errors = len([e for e in events if e["event_type"] == "PostToolUse" and e.get("tool_output_success") == 0])
@@ -68,12 +69,19 @@ def build_overview_panel(db: PulseDB, analyzer: Analyzer) -> Panel:
     # Debug cycles
     summary = analyzer.session_summary(sid)
 
-    # Project path
-    project = session.get("project_path", "?")
+    # Project path — from session record or from events
+    project = session.get("project_path") or row["project_path"] or "?"
     if project and len(project) > 40:
         project = "..." + project[-37:]
 
-    model = session.get("model") or "?"
+    # Model — from session record or first event with model field
+    model = session.get("model")
+    if not model:
+        for e in events:
+            if e.get("model"):
+                model = e["model"]
+                break
+    model = model or "?"
 
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column(style="bold cyan")
@@ -103,12 +111,12 @@ def build_overview_panel(db: PulseDB, analyzer: Analyzer) -> Panel:
 
 def build_tool_mix_panel(db: PulseDB, analyzer: Analyzer) -> Panel:
     """Build tool mix visualization panel."""
-    # Use the most recent session's project
-    sessions = db.execute(
-        "SELECT project_path FROM sessions ORDER BY started_at DESC LIMIT 1"
-    ).fetchall()
+    # Use the most recent session's project — from events table
+    row = db.execute(
+        "SELECT project_path FROM events ORDER BY timestamp DESC LIMIT 1"
+    ).fetchone()
 
-    project_path = dict(sessions[0])["project_path"] if sessions else None
+    project_path = row["project_path"] if row else None
     mix = analyzer.tool_mix(project_path)
 
     if mix["total_tool_calls"] == 0:
