@@ -1,13 +1,14 @@
 """Pulse dashboard — Rich TUI for live session and project metrics.
 
-Provides an interactive terminal dashboard with:
-- Active session overview
-- Tool mix visualization
-- Project status with progress bars
-- Recent activity feed
+Redesigned after Challenge review. Priorities:
+1. Hero-KPI: Tasks done today (Outcome > Activity)
+2. Think-Time statt Human-Wait (positiv framen)
+3. Grouped Activity (Prompt-Runden statt einzelne Events)
+4. Trend-Vergleiche bei Metriken
 """
 
 from datetime import datetime
+from pathlib import Path
 
 from rich.console import Console
 from rich.layout import Layout
@@ -23,95 +24,107 @@ from pulse.planner import Planner
 
 
 def _bar(value: float, max_val: float = 100.0, width: int = 10) -> str:
-    """Create a simple bar chart string."""
     filled = int(width * min(value, max_val) / max_val) if max_val > 0 else 0
     return "█" * filled + "░" * (width - filled)
 
 
 def _status_icon(status: str) -> str:
-    icons = {"active": "🟢", "paused": "🟡", "done": "✅", "blocked": "🔴"}
-    return icons.get(status, "⚪")
+    return {"active": "🟢", "paused": "🟡", "done": "✅", "blocked": "🔴"}.get(status, "⚪")
 
 
 def _task_icon(status: str) -> str:
-    icons = {"done": "✅", "in_progress": "🔄", "pending": "⬜", "blocked": "🚫"}
-    return icons.get(status, "⬜")
+    return {"done": "✅", "in_progress": "🔄", "pending": "⬜", "blocked": "🚫"}.get(status, "⬜")
 
 
-def build_overview_panel(db: PulseDB, analyzer: Analyzer) -> Panel:
-    """Build the main overview panel with active session info."""
-    # Find the most recent session — prefer events table (more reliable)
+def _short_path(path: str, max_len: int = 30) -> str:
+    if not path or len(path) <= max_len:
+        return path or "?"
+    return "..." + path[-(max_len - 3):]
+
+
+def build_hero_panel(db: PulseDB, analyzer: Analyzer) -> Panel:
+    """Hero KPI panel — what matters: Outcomes, not activity."""
+    recap = analyzer.daily_recap()
+
+    tasks_done = len(recap["tasks_completed"])
+    files = len(recap["files_touched"])
+    sessions = recap["sessions"]
+    minutes = recap["total_minutes"]
+    debug = recap["debug_cycles"]
+    think = recap["think_time_pct"]
+
+    # Hero line
+    if tasks_done > 0:
+        hero = Text(f"  {tasks_done} Tasks erledigt heute", style="bold green")
+    elif minutes > 0:
+        hero = Text(f"  Aktiv seit {minutes:.0f} min — noch keine Tasks abgeschlossen", style="yellow")
+    else:
+        hero = Text("  Heute noch keine Aktivitaet", style="dim")
+
+    table = Table(show_header=False, box=None, padding=(0, 2))
+    table.add_column(style="bold cyan", width=14)
+    table.add_column(width=12)
+    table.add_column(style="bold cyan", width=14)
+    table.add_column(width=12)
+
+    table.add_row(
+        "Sessions", str(sessions),
+        "Dateien", str(files),
+    )
+    table.add_row(
+        "Arbeitszeit", f"{minutes:.0f} min",
+        "Debug-Zyklen", str(debug),
+    )
+    table.add_row(
+        "Think-Time", f"{think:.0f}%",
+        "Prompts", str(recap["prompts"]),
+    )
+
+    # Tasks completed list
+    if recap["tasks_completed"]:
+        table.add_row("", "", "", "")
+        for tc in recap["tasks_completed"][:3]:
+            table.add_row("", f"✅ {tc['task']}", "", tc["project"])
+
+    content = Text()
+    content.append_text(hero)
+
+    from rich.console import Group
+    panel_content = Group(hero, Text(""), table)
+
+    return Panel(panel_content, title=f"HEUTE  {recap['date']}", border_style="bright_green")
+
+
+def build_session_panel(db: PulseDB, analyzer: Analyzer) -> Panel:
+    """Current session overview — compact."""
     row = db.execute(
         "SELECT session_id, project_path, MAX(timestamp) as last_ts "
         "FROM events GROUP BY session_id ORDER BY last_ts DESC LIMIT 1"
     ).fetchone()
 
     if not row:
-        return Panel("Keine Sessions gefunden.", title="AKTIVE SESSION", border_style="dim")
+        return Panel("Keine aktive Session.", title="SESSION", border_style="dim")
 
     sid = row["session_id"]
-    events = db.get_events_by_session(sid)
-
-    # Try to get session record, fall back to events data
-    session = db.get_session(sid) or {}
-    prompts = len([e for e in events if e["event_type"] == "UserPromptSubmit"])
-    tool_calls = len([e for e in events if e["event_type"] == "PreToolUse"])
-    errors = len([e for e in events if e["event_type"] == "PostToolUse" and e.get("tool_output_success") == 0])
-
-    # Duration
-    if events:
-        first = datetime.fromisoformat(events[0]["timestamp"])
-        last = datetime.fromisoformat(events[-1]["timestamp"])
-        duration_min = (last - first).total_seconds() / 60
-    else:
-        duration_min = 0
-
-    # Debug cycles
     summary = analyzer.session_summary(sid)
+    project = _short_path(row["project_path"])
 
-    # Project path — from session record or from events
-    project = session.get("project_path") or row["project_path"] or "?"
-    if project and len(project) > 40:
-        project = "..." + project[-37:]
+    table = Table(show_header=False, box=None, padding=(0, 1))
+    table.add_column(style="bold cyan", width=12)
+    table.add_column(width=16)
 
-    # Model — from session record or first event with model field
-    model = session.get("model")
-    if not model:
-        for e in events:
-            if e.get("model"):
-                model = e["model"]
-                break
-    model = model or "?"
+    table.add_row("Projekt", project)
+    table.add_row("Laufzeit", f"{summary['duration_minutes']:.0f} min")
+    table.add_row("Tool-Calls", str(summary["tool_calls"]))
+    table.add_row("Debug", str(summary["debug_cycles"]))
+    table.add_row("Think-Time", f"{summary['human_wait_pct']:.0f}%")
+    table.add_row("Model", summary["model"] or "?")
 
-    table = Table(show_header=False, box=None, padding=(0, 2))
-    table.add_column(style="bold cyan")
-    table.add_column()
-    table.add_column(style="bold cyan")
-    table.add_column()
-
-    table.add_row(
-        "Projekt", project,
-        "Model", model,
-    )
-    table.add_row(
-        "Laufzeit", f"{duration_min:.0f} min",
-        "Prompts", str(prompts),
-    )
-    table.add_row(
-        "Tool-Calls", str(tool_calls),
-        "Fehler", str(errors),
-    )
-    table.add_row(
-        "Debug-Zyklen", str(summary["debug_cycles"]),
-        "Human-Wait", f"{summary['human_wait_pct']:.0f}%",
-    )
-
-    return Panel(table, title=f"AKTIVE SESSION  {sid[:12]}...", border_style="bright_blue")
+    return Panel(table, title=f"SESSION  {sid[:8]}...", border_style="bright_blue")
 
 
 def build_tool_mix_panel(db: PulseDB, analyzer: Analyzer) -> Panel:
-    """Build tool mix visualization panel."""
-    # Use the most recent session's project — from events table
+    """Tool mix visualization."""
     row = db.execute(
         "SELECT project_path FROM events ORDER BY timestamp DESC LIMIT 1"
     ).fetchone()
@@ -123,113 +136,90 @@ def build_tool_mix_panel(db: PulseDB, analyzer: Analyzer) -> Panel:
         return Panel("Keine Tool-Daten.", title="TOOL-MIX", border_style="dim")
 
     table = Table(show_header=False, box=None, padding=(0, 1))
-    table.add_column(width=8)
-    table.add_column(width=14)
-    table.add_column(width=6, justify="right")
+    table.add_column(width=7)
+    table.add_column(width=12)
+    table.add_column(width=5, justify="right")
 
     tools = [
         ("Write", mix["write_pct"], "green"),
         ("Edit", mix["edit_pct"], "yellow"),
         ("Bash", mix["bash_pct"], "red"),
         ("Read", mix["read_pct"], "blue"),
-        ("Explore", mix["explore_pct"], "magenta"),
-        ("Other", mix["other_pct"], "dim"),
+        ("Expl.", mix["explore_pct"], "magenta"),
     ]
 
     for name, pct, color in tools:
-        bar = _bar(pct, 100.0, 12)
-        table.add_row(
-            Text(name, style=color),
-            Text(bar, style=color),
-            f"{pct:.0f}%",
-        )
+        if pct > 0:
+            table.add_row(
+                Text(name, style=color),
+                Text(_bar(pct, 100.0, 10), style=color),
+                f"{pct:.0f}%",
+            )
 
-    table.add_row("", "", "")
-    table.add_row(
-        Text("Total", style="bold"),
-        "",
-        str(mix["total_tool_calls"]),
-    )
-
-    content = table
-    return Panel(content, title=f"TOOL-MIX  {mix['interpretation']}", border_style="bright_yellow")
+    return Panel(table, title=f"TOOL-MIX  {mix['interpretation']}", border_style="bright_yellow")
 
 
-def build_activity_panel(db: PulseDB) -> Panel:
-    """Build recent activity feed panel."""
-    events = db.execute(
-        "SELECT timestamp, event_type, tool_name, tool_input_summary, tool_output_success "
-        "FROM events ORDER BY timestamp DESC LIMIT 12"
-    ).fetchall()
+def build_grouped_activity_panel(db: PulseDB, analyzer: Analyzer) -> Panel:
+    """Grouped activity feed — prompt rounds instead of raw events."""
+    recap = analyzer.daily_recap()
+    groups = recap["grouped_activity"]
 
-    if not events:
-        return Panel("Keine Events.", title="LETZTE AKTIVITAET", border_style="dim")
+    if not groups:
+        return Panel("Keine Aktivitaet heute.", title="AKTIVITAET", border_style="dim")
 
     table = Table(show_header=False, box=None, padding=(0, 1))
-    table.add_column(width=5)  # time
-    table.add_column(width=2)  # icon
-    table.add_column()  # description
+    table.add_column(width=5)   # time
+    table.add_column(width=2)   # icon
+    table.add_column()          # description
 
-    for e in reversed(list(events)):
-        e = dict(e)
-        ts = e["timestamp"]
+    # Show last 8 groups
+    for g in groups[-8:]:
         try:
-            t = datetime.fromisoformat(ts)
-            time_str = t.strftime("%H:%M")
+            start = datetime.fromisoformat(g["start"]).strftime("%H:%M")
         except (ValueError, TypeError):
-            time_str = "??:??"
+            start = "??:??"
 
-        if e["event_type"] == "UserPromptSubmit":
-            icon = "▶"
-            desc = "Neuer Prompt"
-            style = "bold white"
-        elif e["event_type"] == "Stop":
-            icon = "⏸"
-            desc = "Agent wartet"
-            style = "dim"
-        elif e["event_type"] == "SessionStart":
-            icon = "🟢"
-            desc = "Session gestartet"
-            style = "green"
-        elif e["event_type"] == "SessionEnd":
-            icon = "🔴"
-            desc = "Session beendet"
-            style = "red"
-        elif e["event_type"] in ("PreToolUse", "PostToolUse"):
-            tool = e.get("tool_name") or "?"
-            summary = e.get("tool_input_summary") or ""
-            if len(summary) > 30:
-                summary = summary[:27] + "..."
+        prompt = g.get("prompt", "")
+        if len(prompt) > 45:
+            prompt = prompt[:42] + "..."
 
-            if e["event_type"] == "PreToolUse":
-                continue  # Only show PostToolUse to avoid duplicates
-            success = e.get("tool_output_success")
-            if success == 1 or success is True:
-                icon = "✅"
-                style = "green"
-            elif success == 0 or success is False:
-                icon = "❌"
-                style = "red"
-            else:
-                icon = "·"
-                style = "dim"
-            desc = f"{tool} {summary}"
+        calls = g["tool_calls"]
+        errors = g["errors"]
+        files = g.get("files", [])
+
+        # Status icon
+        if errors > 0:
+            icon = "⚠️"
+            style = "yellow"
         else:
-            icon = "·"
-            desc = e["event_type"]
-            style = "dim"
+            icon = "✅"
+            style = "green"
+
+        # Description
+        file_str = ""
+        if files:
+            short_files = [Path(f).name for f in files[:3]]
+            file_str = f" → {', '.join(short_files)}"
+            if len(files) > 3:
+                file_str += f" +{len(files)-3}"
+
+        desc = f"{prompt}"
+        if calls > 0:
+            desc += f"  [{calls} calls{file_str}]"
+            if errors > 0:
+                desc += f" {errors}❌"
 
         table.add_row(
-            Text(time_str, style="dim"),
+            Text(start, style="dim"),
             icon,
             Text(desc, style=style),
         )
 
-    return Panel(table, title="LETZTE AKTIVITAET", border_style="bright_green")
+    return Panel(table, title="AKTIVITAET  (Prompt-Runden)", border_style="bright_green")
 
 
 def build_projects_panel(db: PulseDB, analyzer: Analyzer, planner: Planner) -> Panel:
-    """Build projects overview panel with progress and forecasts."""
+    """Projects overview with forecasts."""
     projects = db.execute("SELECT * FROM projects ORDER BY status, name").fetchall()
 
     if not projects:
@@ -248,7 +238,6 @@ def build_projects_panel(db: PulseDB, analyzer: Analyzer, planner: Planner) -> P
         if len(name) > 15:
             name = name[:13] + ".."
 
-        # Progress
         done = p.get("completed_tasks") or 0
         total = p.get("total_tasks") or 0
         if total > 0:
@@ -258,7 +247,6 @@ def build_projects_panel(db: PulseDB, analyzer: Analyzer, planner: Planner) -> P
         else:
             progress = "—"
 
-        # Forecast
         if p["status"] == "paused":
             forecast_str = Text("pausiert", style="dim")
         elif p["status"] == "done":
@@ -268,11 +256,11 @@ def build_projects_panel(db: PulseDB, analyzer: Analyzer, planner: Planner) -> P
             if forecast and forecast["status"] == "on_track":
                 buf = forecast.get("buffer_hours")
                 if buf is not None:
-                    forecast_str = Text(f"✅ on track ({buf:.1f}h Puffer)", style="green")
+                    forecast_str = Text(f"✅ on track ({buf:.1f}h)", style="green")
                 else:
                     forecast_str = Text("✅ on track", style="green")
             elif forecast and forecast["status"] == "at_risk":
-                forecast_str = Text(f"⚠️  at risk", style="bold red")
+                forecast_str = Text("⚠️  at risk", style="bold red")
             elif forecast and forecast["status"] == "no_deadline":
                 forecast_str = Text("kein Deadline", style="dim")
             else:
@@ -283,50 +271,6 @@ def build_projects_panel(db: PulseDB, analyzer: Analyzer, planner: Planner) -> P
     return Panel(table, title="PROJEKTE", border_style="bright_magenta")
 
 
-def build_project_detail_panel(db: PulseDB, analyzer: Analyzer, project_name: str) -> Panel:
-    """Build detailed view for a single project."""
-    project = db.get_project(project_name)
-    if not project:
-        return Panel(f"Projekt '{project_name}' nicht gefunden.", border_style="red")
-
-    tasks = db.get_tasks(project["id"])
-    health = analyzer.project_health(project_name)
-
-    table = Table(show_header=True, box=box.SIMPLE, padding=(0, 1))
-    table.add_column("", width=2)
-    table.add_column("Task", width=22)
-    table.add_column("Status", width=12)
-    table.add_column("Dauer", width=8, justify="right")
-    table.add_column("Debug", width=6, justify="right")
-
-    for t in tasks:
-        icon = _task_icon(t["status"])
-        duration = f"{t['actual_minutes']:.0f} min" if t.get("actual_minutes") else "—"
-        debug = str(t["debug_cycles"]) if t.get("debug_cycles") else "—"
-        if t.get("debug_cycles") and t["debug_cycles"] >= 4:
-            debug += " ⚠️"
-        table.add_row(icon, t["name"], t["status"], duration, debug)
-
-    # Health metrics
-    if health:
-        table.add_row("", "", "", "", "")
-        table.add_row(
-            "", Text("Avg Debug-Ratio", style="bold"),
-            f"{health['avg_debug_ratio']:.1%}", "", "",
-        )
-        table.add_row(
-            "", Text("Sessions gesamt", style="bold"),
-            f"{health['total_session_hours']:.1f}h", "", "",
-        )
-        table.add_row(
-            "", Text("Trend", style="bold"),
-            health["trend"], "", "",
-        )
-
-    deadline = project.get("deadline") or "kein Deadline"
-    return Panel(table, title=f"PROJEKT: {project_name}  —  {deadline}", border_style="bright_cyan")
-
-
 def build_dashboard(db: PulseDB) -> Layout:
     """Build the full dashboard layout."""
     analyzer = Analyzer(db)
@@ -335,8 +279,8 @@ def build_dashboard(db: PulseDB) -> Layout:
     layout = Layout()
     layout.split_column(
         Layout(name="header", size=1),
-        Layout(name="top", size=10),
-        Layout(name="middle", size=11),
+        Layout(name="top", size=12),
+        Layout(name="middle", size=12),
         Layout(name="bottom", size=10),
     )
 
@@ -345,14 +289,18 @@ def build_dashboard(db: PulseDB) -> Layout:
     header = Text(f"  🫀 PULSE  ─────────────────────────────────────────  {now}  ", style="bold bright_blue on dark_blue")
     layout["header"].update(header)
 
-    # Top: Session overview + Tool mix
+    # Top: Hero KPI (left) + Session + Tool Mix (right)
     layout["top"].split_row(
-        Layout(build_overview_panel(db, analyzer), name="session"),
+        Layout(build_hero_panel(db, analyzer), name="hero", ratio=3),
+        Layout(name="right", ratio=2),
+    )
+    layout["top"]["right"].split_column(
+        Layout(build_session_panel(db, analyzer), name="session"),
         Layout(build_tool_mix_panel(db, analyzer), name="toolmix"),
     )
 
-    # Middle: Activity feed
-    layout["middle"].update(build_activity_panel(db))
+    # Middle: Grouped Activity
+    layout["middle"].update(build_grouped_activity_panel(db, analyzer))
 
     # Bottom: Projects
     layout["bottom"].update(build_projects_panel(db, analyzer, planner))
@@ -384,10 +332,46 @@ def print_snapshot(db_path: str, project_name: str | None = None) -> None:
     planner = Planner(db, analyzer)
 
     console.print()
-    console.print(build_overview_panel(db, analyzer))
+    console.print(build_hero_panel(db, analyzer))
+    console.print(build_session_panel(db, analyzer))
     console.print(build_tool_mix_panel(db, analyzer))
-    console.print(build_activity_panel(db))
+    console.print(build_grouped_activity_panel(db, analyzer))
     console.print(build_projects_panel(db, analyzer, planner))
 
     if project_name:
+        from pulse.analyzer import Analyzer as A
         console.print(build_project_detail_panel(db, analyzer, project_name))
+
+
+def build_project_detail_panel(db: PulseDB, analyzer: Analyzer, project_name: str) -> Panel:
+    """Detailed view for a single project."""
+    project = db.get_project(project_name)
+    if not project:
+        return Panel(f"Projekt '{project_name}' nicht gefunden.", border_style="red")
+
+    tasks = db.get_tasks(project["id"])
+    health = analyzer.project_health(project_name)
+
+    table = Table(show_header=True, box=box.SIMPLE, padding=(0, 1))
+    table.add_column("", width=2)
+    table.add_column("Task", width=22)
+    table.add_column("Status", width=12)
+    table.add_column("Dauer", width=8, justify="right")
+    table.add_column("Debug", width=6, justify="right")
+
+    for t in tasks:
+        icon = _task_icon(t["status"])
+        duration = f"{t['actual_minutes']:.0f} min" if t.get("actual_minutes") else "—"
+        debug = str(t["debug_cycles"]) if t.get("debug_cycles") else "—"
+        if t.get("debug_cycles") and t["debug_cycles"] >= 4:
+            debug += " ⚠️"
+        table.add_row(icon, t["name"], t["status"], duration, debug)
+
+    if health:
+        table.add_row("", "", "", "", "")
+        table.add_row("", Text("Debug-Ratio", style="bold"), f"{health['avg_debug_ratio']:.1%}", "", "")
+        table.add_row("", Text("Sessions", style="bold"), f"{health['total_session_hours']:.1f}h", "", "")
+        table.add_row("", Text("Trend", style="bold"), health["trend"], "", "")
+
+    deadline = project.get("deadline") or "kein Deadline"
+    return Panel(table, title=f"PROJEKT: {project_name}  —  {deadline}", border_style="bright_cyan")

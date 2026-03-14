@@ -1,9 +1,10 @@
 """Pulse analyzer — Computes metrics from collected hook events.
 
-Provides: tool_mix, debug_ratio, human_wait_time, session_summary, project_health.
+Provides: tool_mix, debug_ratio, think_time, session_summary, project_health,
+daily_recap, weekly_recap, trend comparisons.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from pulse.db import PulseDB
 
@@ -294,3 +295,205 @@ class Analyzer:
             "last_session": sessions[0]["started_at"] if sessions else None,
             "trend": trend,
         }
+
+    # --- Recap & Trends ---
+
+    def daily_recap(self, date: str | None = None) -> dict:
+        """Recap for a single day across all projects.
+
+        Args:
+            date: ISO date string (YYYY-MM-DD). Defaults to today.
+        """
+        if date is None:
+            date = datetime.now().strftime("%Y-%m-%d")
+
+        day_start = f"{date}T00:00:00"
+        day_end = f"{date}T23:59:59"
+
+        # Events today
+        events = self.db.execute(
+            "SELECT * FROM events WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp",
+            (day_start, day_end),
+        ).fetchall()
+        events = [dict(e) for e in events]
+
+        if not events:
+            return {
+                "date": date,
+                "sessions": 0,
+                "total_minutes": 0.0,
+                "prompts": 0,
+                "tool_calls": 0,
+                "files_touched": [],
+                "tasks_completed": [],
+                "debug_cycles": 0,
+                "think_time_pct": 0.0,
+                "projects_worked": [],
+                "grouped_activity": [],
+            }
+
+        # Distinct sessions
+        session_ids = list({e["session_id"] for e in events})
+
+        # Total time
+        first = datetime.fromisoformat(events[0]["timestamp"])
+        last = datetime.fromisoformat(events[-1]["timestamp"])
+        total_min = (last - first).total_seconds() / 60
+
+        prompts = len([e for e in events if e["event_type"] == "UserPromptSubmit"])
+        tool_calls = len([e for e in events if e["event_type"] == "PreToolUse"])
+
+        # Files
+        files = set()
+        for e in events:
+            f = self._extract_file(e)
+            if f:
+                files.add(f)
+
+        # Debug cycles
+        tool_events = [e for e in events if e["event_type"] in ("PreToolUse", "PostToolUse")]
+        debug_cycles = len(self._detect_debug_cycles(tool_events))
+
+        # Think time
+        think_seconds = 0.0
+        for i, e in enumerate(events):
+            if e["event_type"] != "Stop":
+                continue
+            for ne in events[i + 1:]:
+                if ne["event_type"] == "UserPromptSubmit":
+                    wait = (datetime.fromisoformat(ne["timestamp"]) -
+                            datetime.fromisoformat(e["timestamp"])).total_seconds()
+                    if wait > 0:
+                        think_seconds += wait
+                    break
+        total_seconds = (last - first).total_seconds()
+        think_pct = round(think_seconds / total_seconds * 100, 1) if total_seconds > 0 else 0.0
+
+        # Tasks completed today
+        tasks_done = self.db.execute(
+            "SELECT t.name, p.name as project_name FROM tasks t "
+            "JOIN projects p ON t.project_id = p.id "
+            "WHERE t.completed_at >= ? AND t.completed_at <= ?",
+            (day_start, day_end),
+        ).fetchall()
+        tasks_completed = [{"task": t["name"], "project": t["project_name"]} for t in tasks_done]
+
+        # Projects worked on
+        projects_worked = list({e["project_path"] for e in events if e.get("project_path")})
+
+        # Grouped activity: cluster by prompt rounds
+        grouped = self._group_activity(events)
+
+        return {
+            "date": date,
+            "sessions": len(session_ids),
+            "total_minutes": round(total_min, 1),
+            "prompts": prompts,
+            "tool_calls": tool_calls,
+            "files_touched": sorted(files),
+            "tasks_completed": tasks_completed,
+            "debug_cycles": debug_cycles,
+            "think_time_pct": think_pct,
+            "projects_worked": projects_worked,
+            "grouped_activity": grouped,
+        }
+
+    def weekly_recap(self) -> dict:
+        """Recap for the last 7 days with trend comparison."""
+        today = datetime.now().date()
+        days = []
+        for i in range(7):
+            d = (today - timedelta(days=i)).isoformat()
+            days.append(self.daily_recap(d))
+
+        # This week totals
+        total_tasks = sum(len(d["tasks_completed"]) for d in days)
+        total_minutes = sum(d["total_minutes"] for d in days)
+        total_debug = sum(d["debug_cycles"] for d in days)
+        total_sessions = sum(d["sessions"] for d in days)
+        all_files = set()
+        for d in days:
+            all_files.update(d["files_touched"])
+
+        # Previous week for comparison
+        prev_days = []
+        for i in range(7, 14):
+            d = (today - timedelta(days=i)).isoformat()
+            prev_days.append(self.daily_recap(d))
+
+        prev_tasks = sum(len(d["tasks_completed"]) for d in prev_days)
+        prev_minutes = sum(d["total_minutes"] for d in prev_days)
+        prev_debug = sum(d["debug_cycles"] for d in prev_days)
+
+        return {
+            "period": f"{(today - timedelta(days=6)).isoformat()} — {today.isoformat()}",
+            "days": days,
+            "total_tasks_completed": total_tasks,
+            "total_minutes": round(total_minutes, 1),
+            "total_sessions": total_sessions,
+            "total_debug_cycles": total_debug,
+            "files_touched": len(all_files),
+            "trend_tasks": _trend(total_tasks, prev_tasks),
+            "trend_minutes": _trend(total_minutes, prev_minutes),
+            "trend_debug": _trend_inverse(total_debug, prev_debug),
+        }
+
+    def _group_activity(self, events: list[dict]) -> list[dict]:
+        """Group events into prompt-round blocks for readable activity feed."""
+        groups = []
+        current_group: dict | None = None
+
+        for e in events:
+            if e["event_type"] == "UserPromptSubmit":
+                if current_group:
+                    groups.append(current_group)
+                prompt = (e.get("prompt_text") or "")[:80]
+                current_group = {
+                    "start": e["timestamp"],
+                    "prompt": prompt,
+                    "tool_calls": 0,
+                    "errors": 0,
+                    "files": set(),
+                    "end": e["timestamp"],
+                }
+            elif current_group and e["event_type"] == "PostToolUse":
+                current_group["tool_calls"] += 1
+                current_group["end"] = e["timestamp"]
+                if e.get("tool_output_success") in (0, False):
+                    current_group["errors"] += 1
+                f = self._extract_file(e)
+                if f:
+                    current_group["files"].add(f)
+
+        if current_group:
+            groups.append(current_group)
+
+        # Convert sets to lists for serialization
+        for g in groups:
+            g["files"] = sorted(g["files"])
+
+        return groups
+
+
+def _trend(current: float, previous: float) -> str:
+    """Compare current vs previous period. Returns arrow + description."""
+    if previous == 0:
+        return "↗ neu" if current > 0 else "—"
+    change = (current - previous) / previous
+    if change > 0.2:
+        return f"↑ +{change:.0%}"
+    elif change < -0.2:
+        return f"↓ {change:.0%}"
+    return "→ stabil"
+
+
+def _trend_inverse(current: float, previous: float) -> str:
+    """Like _trend, but lower is better (e.g. debug cycles)."""
+    if previous == 0:
+        return "↗ neu" if current > 0 else "—"
+    change = (current - previous) / previous
+    if change > 0.2:
+        return f"↑ +{change:.0%} (mehr)"
+    elif change < -0.2:
+        return f"↓ {change:.0%} (besser)"
+    return "→ stabil"

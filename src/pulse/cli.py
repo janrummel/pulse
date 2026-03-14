@@ -67,6 +67,11 @@ def main(argv: list[str] | None = None) -> None:
     p_task_add.add_argument("task_name", help="Task name")
     p_task_add.add_argument("--estimate", type=float, help="Estimated minutes")
 
+    # recap
+    p_recap = sub.add_parser("recap", help="Daily or weekly recap")
+    p_recap.add_argument("--week", action="store_true", help="Show weekly recap")
+    p_recap.add_argument("--date", help="Date for daily recap (YYYY-MM-DD)")
+
     # track
     p_track = sub.add_parser("track", help="Detect and apply task completions")
     p_track.add_argument("--session", help="Session ID (default: most recent)")
@@ -100,6 +105,8 @@ def main(argv: list[str] | None = None) -> None:
         _cmd_project(args)
     elif args.command == "task":
         _cmd_task(args)
+    elif args.command == "recap":
+        _cmd_recap(args)
     elif args.command == "track":
         _cmd_track(args)
     elif args.command == "dashboard":
@@ -258,6 +265,109 @@ def _cmd_task(args: argparse.Namespace) -> None:
 
     else:
         print("Usage: pulse task {done|add} <project> <task_name>")
+
+
+def _cmd_recap(args: argparse.Namespace) -> None:
+    """Show daily or weekly recap."""
+    from rich import box as rich_box
+    from rich.console import Console
+    from rich.table import Table
+    from rich.text import Text
+
+    from pulse.analyzer import Analyzer
+
+    db = PulseDB(_DEFAULT_DB_PATH)
+    analyzer = Analyzer(db)
+    console = Console()
+
+    if args.week:
+        recap = analyzer.weekly_recap()
+
+        console.print()
+        console.print(f"[bold]Wochen-Recap: {recap['period']}[/bold]")
+        console.print()
+
+        table = Table(show_header=True, box=rich_box.SIMPLE)
+        table.add_column("Metrik", width=20)
+        table.add_column("Wert", width=12, justify="right")
+        table.add_column("Trend", width=18)
+
+        table.add_row("Tasks erledigt", str(recap["total_tasks_completed"]), recap["trend_tasks"])
+        table.add_row("Arbeitszeit", f"{recap['total_minutes']:.0f} min", recap["trend_minutes"])
+        table.add_row("Sessions", str(recap["total_sessions"]), "")
+        table.add_row("Debug-Zyklen", str(recap["total_debug_cycles"]), recap["trend_debug"])
+        table.add_row("Dateien bearbeitet", str(recap["files_touched"]), "")
+
+        console.print(table)
+
+        # Daily breakdown
+        console.print()
+        day_table = Table(title="Tage", show_header=True, box=rich_box.SIMPLE)
+        day_table.add_column("Tag", width=12)
+        day_table.add_column("Tasks", width=6, justify="right")
+        day_table.add_column("Zeit", width=8, justify="right")
+        day_table.add_column("Debug", width=6, justify="right")
+
+        for d in reversed(recap["days"]):
+            tasks = len(d["tasks_completed"])
+            style = "green" if tasks > 0 else "dim" if d["total_minutes"] == 0 else ""
+            day_table.add_row(
+                d["date"],
+                str(tasks),
+                f"{d['total_minutes']:.0f} min" if d["total_minutes"] > 0 else "—",
+                str(d["debug_cycles"]) if d["debug_cycles"] > 0 else "—",
+                style=style,
+            )
+
+        console.print(day_table)
+    else:
+        recap = analyzer.daily_recap(args.date)
+
+        tasks_done = len(recap["tasks_completed"])
+        console.print()
+
+        if tasks_done > 0:
+            console.print(f"[bold green]  {tasks_done} Tasks erledigt[/bold green]  am {recap['date']}")
+        else:
+            console.print(f"[bold]  Recap fuer {recap['date']}[/bold]")
+
+        console.print()
+
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column(style="bold cyan", width=16)
+        table.add_column(width=12)
+
+        table.add_row("Sessions", str(recap["sessions"]))
+        table.add_row("Arbeitszeit", f"{recap['total_minutes']:.0f} min")
+        table.add_row("Prompts", str(recap["prompts"]))
+        table.add_row("Tool-Calls", str(recap["tool_calls"]))
+        table.add_row("Debug-Zyklen", str(recap["debug_cycles"]))
+        table.add_row("Think-Time", f"{recap['think_time_pct']:.0f}%")
+        table.add_row("Dateien", str(len(recap["files_touched"])))
+
+        console.print(table)
+
+        if recap["tasks_completed"]:
+            console.print()
+            console.print("[bold]  Erledigte Tasks:[/bold]")
+            for tc in recap["tasks_completed"]:
+                console.print(f"    ✅ {tc['task']}  ({tc['project']})")
+
+        if recap["grouped_activity"]:
+            console.print()
+            console.print("[bold]  Prompt-Runden:[/bold]")
+            for g in recap["grouped_activity"][-6:]:
+                try:
+                    t = datetime.fromisoformat(g["start"]).strftime("%H:%M")
+                except (ValueError, TypeError):
+                    t = "?"
+                prompt = (g.get("prompt") or "")[:50]
+                calls = g["tool_calls"]
+                errors = g["errors"]
+                icon = "⚠️" if errors > 0 else "✅"
+                console.print(f"    {t}  {icon}  {prompt}  [{calls} calls]")
+
+    console.print()
 
 
 def _cmd_track(args: argparse.Namespace) -> None:
