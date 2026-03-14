@@ -5,6 +5,7 @@ event is forwarded to `pulse collect`.
 """
 
 import json
+import shutil
 from pathlib import Path
 
 _P1_EVENTS = ["SessionStart", "SessionEnd", "PreToolUse", "PostToolUse",
@@ -13,14 +14,27 @@ _TOOL_EVENTS = {"PreToolUse", "PostToolUse"}
 _DEFAULT_SETTINGS_PATH = str(Path.home() / ".claude" / "settings.json")
 
 
-def generate_hook_config() -> dict:
+def _find_pulse_binary() -> str:
+    """Find the full path to the pulse binary."""
+    # Check common locations
+    for candidate in [
+        Path.home() / ".local" / "bin" / "pulse",
+        Path(shutil.which("pulse") or ""),
+    ]:
+        if candidate.exists():
+            return str(candidate)
+    return "pulse"  # Fallback to bare command
+
+
+def generate_hook_config(pulse_binary: str | None = None) -> dict:
     """Generate the hooks configuration dict for Claude Code settings."""
+    binary = pulse_binary or _find_pulse_binary()
     config = {}
     for event in _P1_EVENTS:
         entry = {
             "hooks": [{
                 "type": "command",
-                "command": f"pulse collect --event {event}",
+                "command": f"{binary} collect --event {event}",
             }],
         }
         if event in _TOOL_EVENTS:
