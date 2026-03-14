@@ -106,7 +106,10 @@ def main(argv: list[str] | None = None) -> None:
 
     args = parser.parse_args(argv)
 
-    if args.command == "collect":
+    if args.command is None:
+        # No subcommand → launch interactive command center
+        _cmd_launch()
+    elif args.command == "collect":
         _cmd_collect(args)
     elif args.command == "install":
         _cmd_install()
