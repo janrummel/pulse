@@ -67,6 +67,12 @@ def main(argv: list[str] | None = None) -> None:
     p_task_add.add_argument("task_name", help="Task name")
     p_task_add.add_argument("--estimate", type=float, help="Estimated minutes")
 
+    # track
+    p_track = sub.add_parser("track", help="Detect and apply task completions")
+    p_track.add_argument("--session", help="Session ID (default: most recent)")
+    p_track.add_argument("--apply", action="store_true", help="Auto-apply high-confidence signals")
+    p_track.add_argument("--min-confidence", type=float, default=0.7, help="Min confidence for auto-apply")
+
     # dashboard
     p_dash = sub.add_parser("dashboard", help="Live TUI dashboard")
     p_dash.add_argument("--db", help="DB path (default: ~/.pulse/pulse.db)")
@@ -94,6 +100,8 @@ def main(argv: list[str] | None = None) -> None:
         _cmd_project(args)
     elif args.command == "task":
         _cmd_task(args)
+    elif args.command == "track":
+        _cmd_track(args)
     elif args.command == "dashboard":
         _cmd_dashboard(args)
     elif args.command == "metrics":
@@ -250,6 +258,60 @@ def _cmd_task(args: argparse.Namespace) -> None:
 
     else:
         print("Usage: pulse task {done|add} <project> <task_name>")
+
+
+def _cmd_track(args: argparse.Namespace) -> None:
+    """Detect and optionally apply task completion signals."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from pulse.tracker import TaskTracker
+
+    db = PulseDB(_DEFAULT_DB_PATH)
+    tracker = TaskTracker(db)
+
+    # Find session ID
+    session_id = args.session
+    if not session_id:
+        row = db.execute(
+            "SELECT session_id FROM events ORDER BY timestamp DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            print("Keine Events gefunden.")
+            return
+        session_id = row["session_id"]
+
+    signals = tracker.detect_signals(session_id)
+
+    if not signals:
+        print("Keine Task-Completion-Signale erkannt.")
+        return
+
+    console = Console()
+    table = Table(title=f"Task Signals  (Session: {session_id[:12]}...)")
+    table.add_column("Task", width=20)
+    table.add_column("Signal", width=20)
+    table.add_column("Conf.", width=6, justify="right")
+    table.add_column("Evidenz", width=40)
+
+    for s in signals:
+        conf_style = "bold green" if s.confidence >= 0.7 else "yellow" if s.confidence >= 0.5 else "dim"
+        table.add_row(s.task_name, s.signal_type, f"{s.confidence:.1f}", s.evidence, style=conf_style)
+
+    console.print()
+    console.print(table)
+
+    if args.apply:
+        applied = tracker.apply_signals(signals, min_confidence=args.min_confidence)
+        if applied:
+            console.print(f"\n[green]{len(applied)} Task(s) als done markiert.[/green]")
+            for a in applied:
+                console.print(f"  ✅ {a.task_name} ({a.signal_type}, {a.confidence:.1f})")
+        else:
+            console.print(f"\n[dim]Keine Signale ueber Confidence {args.min_confidence}.[/dim]")
+    else:
+        console.print("\n[dim]Nutze --apply um Tasks automatisch als done zu markieren.[/dim]")
+    console.print()
 
 
 def _cmd_dashboard(args: argparse.Namespace) -> None:
