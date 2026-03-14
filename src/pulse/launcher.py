@@ -192,6 +192,7 @@ class PulseLauncher(App):
     """
 
     BINDINGS = [
+        Binding("d", "dashboard", "Dashboard"),
         Binding("r", "recap", "Recap"),
         Binding("p", "portfolio", "Portfolio"),
         Binding("q", "quit", "Beenden"),
@@ -225,7 +226,7 @@ class PulseLauncher(App):
             yield DetailPanel("  Projekt waehlen...", id="detail")
 
         yield Label(
-            " [Enter] Claude starten  [r] Recap  [p] Portfolio  [q] Beenden",
+            " [Enter] Claude starten  [d] Dashboard  [r] Recap  [p] Portfolio  [q] Beenden",
             id="status-bar",
         )
         yield Footer()
@@ -291,6 +292,11 @@ class PulseLauncher(App):
 
         # Back to Pulse — refresh data
         self.db = PulseDB(self.db_path)
+
+    def action_dashboard(self) -> None:
+        """Launch live dashboard."""
+        with self.suspend():
+            subprocess.run(["pulse", "dashboard"])
 
     def action_recap(self) -> None:
         """Show recap in a subprocess."""
