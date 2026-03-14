@@ -33,7 +33,7 @@
         .container { max-width: 880px; margin: 0 auto; padding: 0 24px; }
 
         /* Hero */
-        .hero { text-align: center; padding: 80px 0 48px; }
+        .hero { text-align: center; padding: 80px 0 32px; }
         .hero-icon { font-size: 56px; margin-bottom: 16px; }
         .hero h1 { font-size: 52px; font-weight: 700; letter-spacing: -0.03em; }
         .hero .tagline { font-size: 18px; color: var(--dim); max-width: 480px; margin: 16px auto 32px; }
@@ -43,13 +43,26 @@
         .badge.g { border-color: var(--green); color: var(--green); }
         .badge.b { border-color: var(--blue); color: var(--blue); }
 
+        /* Problem */
+        .problem { max-width: 640px; margin: 0 auto 48px; text-align: center; }
+        .problem p { color: var(--dim); font-size: 15px; line-height: 1.7; }
+        .problem strong { color: var(--text); font-weight: 600; }
+
+        /* Install */
         .install-box {
             background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-            padding: 16px 24px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 14px;
-            max-width: 520px; margin: 0 auto 64px; text-align: left; line-height: 2;
+            padding: 16px 24px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px;
+            max-width: 560px; margin: 0 auto 24px; text-align: left; line-height: 2;
+            overflow-x: auto; white-space: nowrap;
         }
         .install-box .p { color: var(--dim); }
         .install-box .c { color: var(--green); }
+
+        .cta { text-align: center; margin-bottom: 64px; }
+        .cta a {
+            display: inline-block; padding: 10px 28px; background: var(--blue); color: #fff;
+            border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;
+        }
 
         /* Terminal */
         .term { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 40px; }
@@ -73,9 +86,8 @@
         .section h2 { font-size: 28px; font-weight: 700; margin-bottom: 24px; letter-spacing: -0.01em; }
 
         /* Features grid */
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 64px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
-        .card .ico { font-size: 28px; margin-bottom: 12px; }
         .card h3 { font-size: 15px; margin-bottom: 6px; }
         .card p { color: var(--dim); font-size: 14px; line-height: 1.5; }
 
@@ -109,11 +121,20 @@
         .g { color: var(--green); } .y { color: var(--yellow); } .r { color: var(--red); }
         .bl { color: var(--blue); } .cy { color: var(--cyan); } .mg { color: var(--magenta); }
         .d { color: var(--dim); } .b { font-weight: 700; }
+
+        /* Mobile */
+        @media (max-width: 600px) {
+            .hero h1 { font-size: 36px; }
+            .hero .tagline { font-size: 16px; }
+            .term-body, .arch { font-size: 11px; padding: 16px; }
+            .grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
 <div class="container">
 
+    <!-- Hero -->
     <div class="hero">
         <div class="hero-icon">🫀</div>
         <h1>Pulse</h1>
@@ -124,22 +145,64 @@
             <span class="badge">SQLite</span>
             <span class="badge">Rich + Textual</span>
         </div>
-        <div class="install-box">
-            <span class="p">$</span> <span class="c">pipx install git+https://github.com/janrummel/pulse.git</span><br>
-            <span class="p">$</span> <span class="c">pulse install</span><br>
-            <span class="p">$</span> <span class="c">pulse</span>
-        </div>
     </div>
 
+    <!-- Problem -->
+    <div class="problem">
+        <p>
+            <a href="https://www.anthropic.com/products/claude-code" style="color:var(--blue);text-decoration:none">Claude Code</a> plans as if a human writes the code.
+            Reality: <strong>debug cycles</strong>, <strong>context loss</strong>, and <strong>human wait time</strong> are the real bottlenecks
+            — but nobody measures them. Pulse does.
+        </p>
+    </div>
+
+    <!-- Install -->
+    <div class="install-box">
+        <span class="p">$</span> <span class="c">pipx install git+https://github.com/janrummel/pulse.git</span><br>
+        <span class="p">$</span> <span class="c">pulse install</span>
+        <span class="d">&nbsp;&nbsp;# hooks in Claude Code aktivieren</span><br>
+        <span class="p">$</span> <span class="c">pulse</span>
+        <span class="d">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# TUI starten</span>
+    </div>
+
+    <div class="cta">
+        <a href="https://github.com/janrummel/pulse">View on GitHub</a>
+    </div>
+
+    <!-- Navigation -->
     <div class="section">
         <h2>One app, four views</h2>
-        <p style="text-align:center; color:var(--dim); margin-bottom:16px;">Type <code style="color:var(--text)">pulse</code> to open the interactive TUI. Switch views with number keys.</p>
+        <p style="text-align:center; color:var(--dim); margin-bottom:16px;">
+            Type <code style="color:var(--text)">pulse</code> to open the interactive TUI. Switch views with number keys.
+        </p>
         <div class="keys">
             <span class="key"><kbd>1</kbd> Launcher</span>
             <span class="key"><kbd>2</kbd> Dashboard</span>
             <span class="key"><kbd>3</kbd> Recap</span>
             <span class="key"><kbd>4</kbd> Portfolio</span>
             <span class="key"><kbd>q</kbd> Quit</span>
+        </div>
+    </div>
+
+    <!-- Launcher -->
+    <div class="section">
+        <div class="term">
+            <div class="term-bar">
+                <div class="term-dot r"></div>
+                <div class="term-dot y"></div>
+                <div class="term-dot g"></div>
+                <span class="term-title">Launcher</span>
+            </div>
+            <div class="term-body"><span class="b bl">[1] Launcher</span>  [2] Dashboard  [3] Recap  [4] Portfolio  [q] Quit
+
+  <span class="g">&#9679; api-service</span>
+  <span class="g">&#9679; cli-toolkit</span>            <span class="b">cli-toolkit</span>
+  <span class="g">&#9679; data-sync</span>              Tools  ·  active
+  <span class="g">&#9679; pulse</span>                  ~/Projects/cli-toolkit
+    &#9679; advanced-track
+                               Last activity: 2h ago
+
+                               <span class="cy">&#8594; Add pagination to list command</span></div>
         </div>
     </div>
 
@@ -178,9 +241,10 @@
         </div>
     </div>
 
-    <!-- Portfolio -->
-    <div class="section">
-        <div class="term">
+    <!-- Portfolio + Recap side by side on desktop -->
+    <div class="section" style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <!-- Portfolio -->
+        <div class="term" style="margin-bottom:0;">
             <div class="term-bar">
                 <div class="term-dot r"></div>
                 <div class="term-dot y"></div>
@@ -190,9 +254,8 @@
             <div class="term-body">  <span class="b cy">Tools</span>
   <span class="d">&#10003; config-wizard</span>
   <span class="g">&#9679; api-service &#8635;</span>
-  <span class="g">&#9679; cli-toolkit</span>    &#9608;&#9608;&#9617;&#9617;&#9617;&#9617; 3/10
-  <span class="g">&#9679; data-sync &#8635;</span>
-  <span class="g">&#9679; pulse</span>          &#9608;&#9608;&#9608;&#9608;&#9617;&#9617; 7/12
+  <span class="g">&#9679; cli-toolkit</span>  3/10
+  <span class="g">&#9679; pulse</span>      7/12
 
   <span class="b cy">Learning</span>
   <span class="y">&#9675; ml-course</span>
@@ -203,13 +266,11 @@
   <span class="d">&#10003; compliance-audit</span>
   <span class="g">&#9679; infra-config &#8635;</span>
 
-  <span class="g">8 active</span>  <span class="y">1 paused</span>  <span class="d">3 done</span></div>
+  <span class="g">8 active</span> <span class="y">1 paused</span> <span class="d">3 done</span></div>
         </div>
-    </div>
 
-    <!-- Recap -->
-    <div class="section">
-        <div class="term">
+        <!-- Recap -->
+        <div class="term" style="margin-bottom:0;">
             <div class="term-bar">
                 <div class="term-dot r"></div>
                 <div class="term-dot y"></div>
@@ -221,54 +282,43 @@
   <span class="b cy">Sessions      </span> 5
   <span class="b cy">Work time     </span> 2.4h
   <span class="b cy">Prompts       </span> 23
-  <span class="b cy">Tool calls    </span> 187
   <span class="b cy">Debug cycles  </span> 3
   <span class="b cy">Think-Time    </span> 24%
   <span class="b cy">Files         </span> 31
 
   <span class="b">Prompt rounds:</span>
-  <span class="d">14:01</span>  <span class="g">&#183;</span>  Build auth module with tests   <span class="d">[8 calls]</span>
-  <span class="d">14:09</span>  <span class="g">&#183;</span>  Now search-api endpoint        <span class="d">[12 calls]</span>
-  <span class="d">14:21</span>  <span class="y">!</span>  Continue with deployment        <span class="d">[34 calls]</span>
-  <span class="d">15:08</span>  <span class="g">&#183;</span>  Build dashboard                <span class="d">[22 calls]</span></div>
+  <span class="d">14:01</span> <span class="g">&#183;</span> Build auth module   <span class="d">[8]</span>
+  <span class="d">14:09</span> <span class="g">&#183;</span> Search-api endpoint <span class="d">[12]</span>
+  <span class="d">14:21</span> <span class="y">!</span> Deployment          <span class="d">[34]</span>
+  <span class="d">15:08</span> <span class="g">&#183;</span> Build dashboard     <span class="d">[22]</span></div>
         </div>
     </div>
 
     <!-- Features -->
-    <div class="section" style="text-align:center; margin-bottom:32px;">
-        <a href="https://github.com/janrummel/pulse" style="display:inline-block; padding:10px 28px; background:var(--blue); color:#fff; border-radius:8px; text-decoration:none; font-weight:600; font-size:15px;">View on GitHub</a>
-    </div>
-
     <div class="section">
         <h2>What Pulse measures</h2>
         <div class="grid">
             <div class="card">
-                <div class="ico">&#9679;</div>
                 <h3>Outcomes, not activity</h3>
                 <p>Hero metric is tasks completed today. Tool call counts are secondary context, not the headline.</p>
             </div>
             <div class="card">
-                <div class="ico">&#8635;</div>
                 <h3>Debug cycles</h3>
                 <p>Detects error-fix patterns automatically. Shows which files cause the most rework across sessions.</p>
             </div>
             <div class="card">
-                <div class="ico">&#9671;</div>
                 <h3>Think-Time</h3>
                 <p>Time between agent completion and your next prompt. Not waste — it's where decisions happen.</p>
             </div>
             <div class="card">
-                <div class="ico">&#9650;</div>
                 <h3>Deadline forecasts</h3>
                 <p>Based on historical velocity and debug overhead. Tells you if you'll make it — or what to cut.</p>
             </div>
             <div class="card">
-                <div class="ico">&#10003;</div>
                 <h3>Auto task detection</h3>
-                <p>Recognizes completed tasks from git commits, passing tests, and prompt transitions. Three signal types with confidence scores.</p>
+                <p>Recognizes completed tasks from git commits, passing tests, and prompt transitions.</p>
             </div>
             <div class="card">
-                <div class="ico">&#9632;</div>
                 <h3>Project portfolio</h3>
                 <p>All projects in one view grouped by category. One-time and continuous projects clearly distinguished.</p>
             </div>
@@ -303,9 +353,12 @@
 +-----------+  +-----------+  +-----------+</div>
     </div>
 
-    <!-- Design -->
+    <!-- Design Principles -->
     <div class="section">
         <h2>Design principles</h2>
+        <p style="color:var(--dim); margin-bottom:20px;">
+            Inspired by <a href="https://developer.apple.com/design/human-interface-guidelines/" style="color:var(--blue);text-decoration:none;">Apple Human Interface Guidelines</a>.
+        </p>
         <div class="grid">
             <div class="card">
                 <h3>Clarity</h3>
