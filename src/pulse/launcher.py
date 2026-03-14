@@ -276,10 +276,15 @@ class PulseLauncher(App):
 
             print()
 
+            next_step = _load_project_context(project["name"])
+            prompt = f'Dein aktives Projekt ist {project["name"]}. '
+            if next_step and next_step != "Kein naechster Schritt definiert.":
+                prompt += f"Naechster Schritt: {next_step}"
+
             try:
-                # Try --resume first to continue last session
-                result = subprocess.run(
-                    ["claude", "--resume"],
+                # Start Claude with project context as initial prompt
+                subprocess.run(
+                    ["claude", "--prompt", prompt],
                     cwd=project_path,
                 )
             except FileNotFoundError:
