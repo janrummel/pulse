@@ -85,6 +85,9 @@ def main(argv: list[str] | None = None) -> None:
     p_track.add_argument("--apply", action="store_true", help="Auto-apply high-confidence signals")
     p_track.add_argument("--min-confidence", type=float, default=0.7, help="Min confidence for auto-apply")
 
+    # launch
+    sub.add_parser("launch", help="Interactive project launcher")
+
     # dashboard
     p_dash = sub.add_parser("dashboard", help="Live TUI dashboard")
     p_dash.add_argument("--db", help="DB path (default: ~/.pulse/pulse.db)")
@@ -118,6 +121,8 @@ def main(argv: list[str] | None = None) -> None:
         _cmd_recap(args)
     elif args.command == "track":
         _cmd_track(args)
+    elif args.command == "launch":
+        _cmd_launch()
     elif args.command == "dashboard":
         _cmd_dashboard(args)
     elif args.command == "metrics":
@@ -532,6 +537,12 @@ def _cmd_track(args: argparse.Namespace) -> None:
     else:
         console.print("\n[dim]Nutze --apply um Tasks automatisch als done zu markieren.[/dim]")
     console.print()
+
+
+def _cmd_launch() -> None:
+    """Launch the interactive project launcher."""
+    from pulse.launcher import run_launcher
+    run_launcher()
 
 
 def _cmd_dashboard(args: argparse.Namespace) -> None:
