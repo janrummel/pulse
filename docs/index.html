@@ -264,29 +264,29 @@
     <!-- Architecture -->
     <div class="section">
         <h2>Architecture</h2>
-        <div class="arch">  <span class="d">Claude Code Sessions</span>
-          |
-          +-- <span class="cy">Hooks</span>
-          |   SessionStart, PreToolUse, PostToolUse
-          |   UserPromptSubmit, Stop, SessionEnd
-          |
-          v
-  +-------------+    +--------------+    +--------------+
-  | <span class="g">Collector</span>   |---&gt;| <span class="y">Analyzer</span>     |---&gt;| <span class="bl">Planner</span>      |
-  | <span class="d">hook to db</span>  |    | <span class="d">metrics</span>      |    | <span class="d">forecasts</span>    |
-  +-------------+    +--------------+    +--------------+
-          |                |                    |
-          v                v                    v
-  +----------------------------------------------------+
-  |                    <span class="mg">SQLite DB</span>                       |
-  |  events  sessions  projects  tasks  feedback       |
-  +----------------------------------------------------+
-          |
-          v
-  +-------------+    +--------------+    +--------------+
-  | <span class="g">Dashboard</span>   |    | <span class="cy">Launcher</span>     |    | <span class="y">Tracker</span>      |
-  | <span class="d">Rich TUI</span>    |    | <span class="d">Textual</span>      |    | <span class="d">auto-tasks</span>   |
-  +-------------+    +--------------+    +--------------+</div>
+        <div class="arch"><span class="d">Claude Code Sessions</span>
+  |
+  +-- <span class="cy">Hooks</span>
+  |   SessionStart, PreToolUse,
+  |   PostToolUse, Stop, ...
+  |
+  v
++-----------+  +-----------+  +-----------+
+| <span class="g">Collector</span> |->| <span class="y">Analyzer</span>  |->| <span class="bl">Planner</span>   |
+| <span class="d">hook > db</span> |  | <span class="d">metrics</span>   |  | <span class="d">forecasts</span> |
++-----------+  +-----------+  +-----------+
+  |               |               |
+  v               v               v
++--------------------------------------+
+|            <span class="mg">SQLite DB</span>                |
+|  events  sessions  projects  tasks   |
++--------------------------------------+
+  |
+  v
++-----------+  +-----------+  +-----------+
+| <span class="g">Dashboard</span> |  | <span class="cy">Launcher</span>  |  | <span class="y">Tracker</span>   |
+| <span class="d">Rich TUI</span>  |  | <span class="d">Textual</span>   |  | <span class="d">auto-task</span> |
++-----------+  +-----------+  +-----------+</div>
     </div>
 
     <!-- Design -->
