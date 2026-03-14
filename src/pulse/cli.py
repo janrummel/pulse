@@ -46,6 +46,13 @@ def main(argv: list[str] | None = None) -> None:
     p_add.add_argument("--deadline", help="Deadline (ISO datetime)")
     p_add.add_argument("--tasks", type=int, help="Total number of tasks")
     p_add.add_argument("--status", default="active", choices=["active", "paused", "done"])
+    p_add.add_argument("--category", default="tools",
+                       choices=["tools", "learning", "system", "research", "content", "career"])
+    p_add.add_argument("--type", dest="project_type", default="one-time",
+                       choices=["one-time", "continuous"])
+
+    # portfolio
+    sub.add_parser("portfolio", help="Full project portfolio overview")
 
     # status
     sub.add_parser("status", help="Show all projects")
@@ -99,6 +106,8 @@ def main(argv: list[str] | None = None) -> None:
         _cmd_uninstall()
     elif args.command == "add":
         _cmd_add(args)
+    elif args.command == "portfolio":
+        _cmd_portfolio()
     elif args.command == "status":
         _cmd_status()
     elif args.command == "project":
@@ -146,12 +155,113 @@ def _cmd_add(args: argparse.Namespace) -> None:
         deadline=args.deadline,
         total_tasks=args.tasks,
         status=args.status,
+        category=args.category,
+        project_type=args.project_type,
     )
     print(f"Project '{args.name}' registered at {path}")
     if args.deadline:
         print(f"  Deadline: {args.deadline}")
     if args.tasks:
         print(f"  Tasks: {args.tasks}")
+
+
+def _cmd_portfolio() -> None:
+    """Full portfolio overview grouped by category."""
+    from rich.console import Console
+    from rich.table import Table
+    from rich import box as rich_box
+
+    db = PulseDB(_DEFAULT_DB_PATH)
+    console = Console()
+
+    projects = db.execute("SELECT * FROM projects ORDER BY category, status, name").fetchall()
+    if not projects:
+        console.print("Keine Projekte registriert.")
+        return
+
+    # Group by category
+    categories: dict[str, list] = {}
+    for p in projects:
+        p = dict(p)
+        cat = p.get("category") or "tools"
+        categories.setdefault(cat, []).append(p)
+
+    category_labels = {
+        "tools": "🔧 Tools & Software",
+        "learning": "📚 Learning & Education",
+        "system": "⚙️  System & Infrastructure",
+        "research": "🔬 Research & Analysis",
+        "content": "📝 Content & Marketing",
+        "career": "🎯 Career",
+    }
+
+    status_icons = {
+        "active": "🟢", "paused": "🟡", "done": "✅",
+    }
+
+    type_labels = {
+        "one-time": "", "continuous": "↻",
+    }
+
+    console.print()
+    console.print("[bold]  📋 Projekt-Portfolio[/bold]")
+    console.print()
+
+    total_active = 0
+    total_done = 0
+    total_paused = 0
+
+    for cat_key in ["tools", "learning", "system", "research", "content", "career"]:
+        if cat_key not in categories:
+            continue
+
+        cat_projects = categories[cat_key]
+        label = category_labels.get(cat_key, cat_key)
+
+        table = Table(title=label, box=rich_box.SIMPLE, show_header=True, padding=(0, 1))
+        table.add_column("", width=2)
+        table.add_column("Projekt", width=24)
+        table.add_column("Status", width=10)
+        table.add_column("Fortschritt", width=16)
+        table.add_column("", width=2)
+
+        for p in cat_projects:
+            icon = status_icons.get(p["status"], "⚪")
+            name = p["name"]
+            status = p["status"]
+            ptype = type_labels.get(p.get("project_type", ""), "")
+
+            if status == "active":
+                total_active += 1
+            elif status == "done":
+                total_done += 1
+            elif status == "paused":
+                total_paused += 1
+
+            done = p.get("completed_tasks") or 0
+            total = p.get("total_tasks") or 0
+            if total > 0:
+                pct = done / total
+                bar = _bar_str(pct * 100, 8)
+                progress = f"{bar} {done}/{total}"
+            elif status == "done":
+                progress = "fertig"
+            else:
+                progress = "—"
+
+            style = "dim" if status in ("done", "paused") else ""
+            table.add_row(icon, name, status, progress, ptype, style=style)
+
+        console.print(table)
+
+    console.print()
+    console.print(f"  [bold]{total_active}[/bold] aktiv  ·  [dim]{total_paused} pausiert  ·  {total_done} abgeschlossen[/dim]")
+    console.print()
+
+
+def _bar_str(value: float, width: int = 10) -> str:
+    filled = int(width * min(value, 100.0) / 100.0)
+    return "█" * filled + "░" * (width - filled)
 
 
 def _cmd_status() -> None:

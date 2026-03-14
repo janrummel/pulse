@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS projects (
     total_tasks INTEGER,
     completed_tasks INTEGER DEFAULT 0,
     status TEXT DEFAULT 'active',
+    category TEXT DEFAULT 'tools',
+    project_type TEXT DEFAULT 'one-time',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     notes TEXT
 );
@@ -76,7 +78,19 @@ class PulseDB:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(_SCHEMA)
+        self._migrate()
         self._conn.commit()
+
+    def _migrate(self) -> None:
+        """Run schema migrations for existing databases."""
+        columns = [
+            r[1] for r in
+            self._conn.execute("PRAGMA table_info(projects)").fetchall()
+        ]
+        if "category" not in columns:
+            self._conn.execute("ALTER TABLE projects ADD COLUMN category TEXT DEFAULT 'tools'")
+        if "project_type" not in columns:
+            self._conn.execute("ALTER TABLE projects ADD COLUMN project_type TEXT DEFAULT 'one-time'")
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         """Execute raw SQL. Use for queries not covered by helper methods."""
@@ -235,13 +249,16 @@ class PulseDB:
         deadline: str | None = None,
         total_tasks: int | None = None,
         status: str = "active",
+        category: str = "tools",
+        project_type: str = "one-time",
         notes: str | None = None,
     ) -> int:
         """Register a project and return its row id."""
         cursor = self._conn.execute(
-            """INSERT INTO projects (name, path, deadline, total_tasks, status, notes)
-            VALUES (?, ?, ?, ?, ?, ?)""",
-            (name, path, deadline, total_tasks, status, notes),
+            """INSERT INTO projects (name, path, deadline, total_tasks, status,
+             category, project_type, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (name, path, deadline, total_tasks, status, category, project_type, notes),
         )
         self._conn.commit()
         return cursor.lastrowid
