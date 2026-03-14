@@ -202,7 +202,6 @@ class PulseLauncher(App):
     """
 
     BINDINGS = [
-        Binding("enter", "launch", "Claude starten"),
         Binding("r", "recap", "Recap"),
         Binding("p", "portfolio", "Portfolio"),
         Binding("q", "quit", "Beenden"),
@@ -252,12 +251,11 @@ class PulseLauncher(App):
             )
             detail.border_title = event.item.project["name"]
 
-    def action_launch(self) -> None:
-        """Launch Claude in the selected project directory."""
-        list_view = self.query_one("#project-list", ListView)
-        if list_view.highlighted_child and isinstance(list_view.highlighted_child, ProjectItem):
-            project = list_view.highlighted_child.project
-            self._launch_claude(project)
+    @on(ListView.Selected)
+    def on_selected(self, event: ListView.Selected) -> None:
+        """Launch Claude when Enter is pressed on a project."""
+        if event.item and isinstance(event.item, ProjectItem):
+            self._launch_claude(event.item.project)
 
     def _launch_claude(self, project: dict) -> None:
         """Suspend the app, launch Claude, then resume."""
