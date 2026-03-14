@@ -47,7 +47,7 @@ class TestInstallCommand:
         monkeypatch.setattr("pulse.hooks._DEFAULT_SETTINGS_PATH", settings_path)
         main(["install"])
         captured = capsys.readouterr()
-        assert "installed" in captured.out.lower()
+        assert "installiert" in captured.out.lower()
 
 
 class TestAddCommand:
@@ -69,7 +69,7 @@ class TestStatusCommand:
     def test_status_no_projects(self, mock_db_path, capsys):
         main(["status"])
         captured = capsys.readouterr()
-        assert "no projects" in captured.out.lower()
+        assert "keine projekte" in captured.out.lower()
 
     def test_status_shows_projects(self, mock_db_path, capsys):
         db = PulseDB(mock_db_path)

@@ -151,17 +151,19 @@ def _cmd_collect(args: argparse.Namespace) -> None:
 def _cmd_install() -> None:
     """Install Pulse hooks into Claude Code settings."""
     install_hooks()
-    print("Pulse hooks installed in Claude Code settings.")
+    print("  ✓ Hooks installiert")
 
 
 def _cmd_uninstall() -> None:
     """Remove Pulse hooks from Claude Code settings."""
     uninstall_hooks()
-    print("Pulse hooks removed from Claude Code settings.")
+    print("  ✓ Hooks entfernt")
 
 
 def _cmd_add(args: argparse.Namespace) -> None:
     """Register a new project."""
+    from pulse import theme
+
     db = PulseDB(_DEFAULT_DB_PATH)
     path = str(Path(args.path).expanduser().resolve())
     db.add_project(
@@ -173,184 +175,124 @@ def _cmd_add(args: argparse.Namespace) -> None:
         category=args.category,
         project_type=args.project_type,
     )
-    print(f"Project '{args.name}' registered at {path}")
-    if args.deadline:
-        print(f"  Deadline: {args.deadline}")
-    if args.tasks:
-        print(f"  Tasks: {args.tasks}")
+    dot = theme.STATUS_DOT.get(args.status, "·")
+    cont = " ↻" if args.project_type == "continuous" else ""
+    print(f"  {dot} {args.name}{cont}  → {path}")
 
 
 def _cmd_portfolio() -> None:
-    """Full portfolio overview grouped by category."""
+    """Full portfolio overview grouped by category — uses theme.py."""
     from rich.console import Console
-    from rich.table import Table
-    from rich import box as rich_box
+    from pulse import theme
 
     db = PulseDB(_DEFAULT_DB_PATH)
     console = Console()
 
-    projects = db.execute("SELECT * FROM projects ORDER BY category, status, name").fetchall()
+    projects = db.execute("SELECT * FROM projects ORDER BY category, status DESC, name").fetchall()
     if not projects:
-        console.print("Keine Projekte registriert.")
+        console.print("  Keine Projekte registriert.")
         return
 
-    # Group by category
-    categories: dict[str, list] = {}
+    cats: dict[str, list] = {}
     for p in projects:
         p = dict(p)
-        cat = p.get("category") or "tools"
-        categories.setdefault(cat, []).append(p)
-
-    category_labels = {
-        "tools": "🔧 Tools & Software",
-        "learning": "📚 Learning & Education",
-        "system": "⚙️  System & Infrastructure",
-        "research": "🔬 Research & Analysis",
-        "content": "📝 Content & Marketing",
-        "career": "🎯 Career",
-    }
-
-    status_icons = {
-        "active": "🟢", "paused": "🟡", "done": "✅",
-    }
-
-    type_labels = {
-        "one-time": "", "continuous": "↻",
-    }
+        cats.setdefault(p.get("category") or "tools", []).append(p)
 
     console.print()
-    console.print("[bold]  📋 Projekt-Portfolio[/bold]")
-    console.print()
-
-    total_active = 0
-    total_done = 0
-    total_paused = 0
+    counts = {"active": 0, "paused": 0, "done": 0}
 
     for cat_key in ["tools", "learning", "system", "research", "content", "career"]:
-        if cat_key not in categories:
+        if cat_key not in cats:
             continue
 
-        cat_projects = categories[cat_key]
-        label = category_labels.get(cat_key, cat_key)
+        label = theme.CATEGORY_LABEL.get(cat_key, cat_key)
+        console.print(f"  [bold cyan]{label}[/bold cyan]")
 
-        table = Table(title=label, box=rich_box.SIMPLE, show_header=True, padding=(0, 1))
-        table.add_column("", width=2)
-        table.add_column("Projekt", width=24)
-        table.add_column("Status", width=10)
-        table.add_column("Fortschritt", width=16)
-        table.add_column("", width=2)
-
-        for p in cat_projects:
-            icon = status_icons.get(p["status"], "⚪")
-            name = p["name"]
+        for p in cats[cat_key]:
             status = p["status"]
-            ptype = type_labels.get(p.get("project_type", ""), "")
-
-            if status == "active":
-                total_active += 1
-            elif status == "done":
-                total_done += 1
-            elif status == "paused":
-                total_paused += 1
+            dot = theme.STATUS_DOT.get(status, "·")
+            style = theme.STATUS_STYLE.get(status, "")
+            cont = " ↻" if p.get("project_type") == "continuous" else ""
+            counts[status] = counts.get(status, 0) + 1
 
             done = p.get("completed_tasks") or 0
             total = p.get("total_tasks") or 0
-            if total > 0:
-                pct = done / total
-                bar = _bar_str(pct * 100, 8)
-                progress = f"{bar} {done}/{total}"
-            elif status == "done":
-                progress = "fertig"
-            else:
-                progress = "—"
+            progress = ""
+            if total > 0 and status != "done":
+                progress = f"  {theme.bar(done / total * 100, 100, 6)} {done}/{total}"
 
-            style = "dim" if status in ("done", "paused") else ""
-            table.add_row(icon, name, status, progress, ptype, style=style)
+            console.print(f"  [{style}]{dot} {p['name']}{cont}{progress}[/{style}]")
 
-        console.print(table)
+        console.print()
 
+    console.print(f"  [green]{counts.get('active', 0)} aktiv[/green]  "
+                  f"[yellow]{counts.get('paused', 0)} pausiert[/yellow]  "
+                  f"[dim]{counts.get('done', 0)} fertig[/dim]")
     console.print()
-    console.print(f"  [bold]{total_active}[/bold] aktiv  ·  [dim]{total_paused} pausiert  ·  {total_done} abgeschlossen[/dim]")
-    console.print()
-
-
-def _bar_str(value: float, width: int = 10) -> str:
-    filled = int(width * min(value, 100.0) / 100.0)
-    return "█" * filled + "░" * (width - filled)
 
 
 def _cmd_status() -> None:
     """Show status of all projects."""
+    from pulse import theme
+
     db = PulseDB(_DEFAULT_DB_PATH)
     projects = db.execute("SELECT * FROM projects ORDER BY status, name").fetchall()
 
     if not projects:
-        print("No projects registered. Use 'pulse add <name> <path>' to register one.")
+        print("  Keine Projekte. Nutze 'pulse add <name> <path>'.")
         return
 
-    status_icons = {"active": "🟢", "paused": "🟡", "done": "✅"}
-
+    print()
     for p in projects:
         p = dict(p)
-        icon = status_icons.get(p["status"], "⚪")
+        dot = theme.STATUS_DOT.get(p["status"], "·")
         tasks = ""
-        if p["total_tasks"]:
-            tasks = f"  {p['completed_tasks'] or 0}/{p['total_tasks']} tasks"
-        deadline = ""
-        if p["deadline"]:
-            deadline = f"  deadline: {p['deadline']}"
-        print(f"  {icon} {p['name']:<20}{tasks}{deadline}")
+        if p.get("total_tasks"):
+            done = p.get("completed_tasks") or 0
+            tasks = f"  {done}/{p['total_tasks']}"
+        print(f"  {dot} {p['name']:<20}{tasks}")
+    print()
 
 
 def _cmd_project(args: argparse.Namespace) -> None:
     """Show details for a specific project."""
+    from pulse import theme
+
     db = PulseDB(_DEFAULT_DB_PATH)
     project = db.get_project(args.name)
 
     if not project:
-        print(f"Project '{args.name}' not found.")
+        print(f"  Projekt '{args.name}' nicht gefunden.")
         sys.exit(1)
 
-    print(f"\n  Project: {project['name']}")
-    print(f"  Path:    {project['path']}")
-    print(f"  Status:  {project['status']}")
+    dot = theme.STATUS_DOT.get(project["status"], "·")
+    print(f"\n  {dot} {project['name']}")
+    print(f"  {project['path']}")
     if project["deadline"]:
-        print(f"  Deadline: {project['deadline']}")
+        print(f"  → {project['deadline']}")
     if project["total_tasks"]:
         done = project["completed_tasks"] or 0
         total = project["total_tasks"]
-        pct = (done / total * 100) if total > 0 else 0
-        bar_len = 30
-        filled = int(bar_len * done / total) if total > 0 else 0
-        bar = "█" * filled + "░" * (bar_len - filled)
-        print(f"  Progress: {bar} {done}/{total} ({pct:.0f}%)")
+        print(f"  {theme.bar(done / total * 100 if total else 0, 100, 20)} {done}/{total}")
 
-    # Show tasks
-    pid = project["id"]
-    tasks = db.get_tasks(pid)
+    # Tasks
+    tasks = db.get_tasks(project["id"])
     if tasks:
-        print(f"\n  Tasks:")
-        status_icons = {"pending": "⬜", "in_progress": "🔄", "done": "✅", "blocked": "🚫"}
+        print()
         for t in tasks:
-            icon = status_icons.get(t["status"], "⬜")
-            duration = ""
-            if t["actual_minutes"]:
-                duration = f"  {t['actual_minutes']:.0f} min"
-            debug = ""
-            if t["debug_cycles"]:
-                debug = f"  {t['debug_cycles']} debug"
-            print(f"    {icon} {t['name']}{duration}{debug}")
+            marker = theme.TASK_MARKER.get(t["status"], " ")
+            duration = f"  {theme.duration_human(t['actual_minutes'])}" if t.get("actual_minutes") else ""
+            debug = f"  {t['debug_cycles']} debug" if t.get("debug_cycles") else ""
+            print(f"  {marker} {t['name']}{duration}{debug}")
 
-    # Show recent sessions
+    # Recent sessions
     sessions = db.get_recent_sessions(project["path"], limit=3)
     if sessions:
-        print(f"\n  Recent sessions:")
+        print()
         for s in sessions:
-            duration = ""
-            if s["duration_seconds"]:
-                mins = s["duration_seconds"] / 60
-                duration = f"  {mins:.0f} min"
-            print(f"    {s['started_at'] or '?'}{duration}  prompts: {s['prompt_count']}")
+            ago = theme.time_ago(s["started_at"]) if s.get("started_at") else "?"
+            duration = theme.duration_human(s["duration_seconds"] / 60) if s.get("duration_seconds") else ""
+            print(f"  · {ago}  {duration}  {s['prompt_count']} prompts")
 
     print()
 
@@ -371,10 +313,9 @@ def _cmd_task(args: argparse.Namespace) -> None:
             sys.exit(1)
         task = matching[0]
         db.update_task(task["id"], status="done", completed_at=datetime.now().isoformat())
-        # Update project completed count
         done_count = len([t for t in tasks if t["status"] == "done"]) + 1
         db.update_project(args.project, completed_tasks=done_count)
-        print(f"Task '{args.task_name}' marked as done.")
+        print(f"  ✓ {args.task_name}")
 
     elif args.task_action == "add":
         project = db.get_project(args.project)
@@ -386,7 +327,7 @@ def _cmd_task(args: argparse.Namespace) -> None:
             name=args.task_name,
             estimated_minutes=args.estimate,
         )
-        print(f"Task '{args.task_name}' added to project '{args.project}'.")
+        print(f"  + {args.task_name}")
 
     else:
         print("Usage: pulse task {done|add} <project> <task_name>")
@@ -565,18 +506,19 @@ def _cmd_feedback(args: argparse.Namespace) -> None:
     if args.list:
         rows = db.execute("SELECT * FROM feedback ORDER BY created_at DESC").fetchall()
         if not rows:
-            print("Noch kein Feedback erfasst.")
+            print("  Noch kein Feedback.")
             return
+        print()
         for r in rows:
             r = dict(r)
-            print(f"  {r['created_at']}  {r['text']}")
-        print(f"\n  {len(rows)} Eintraege.")
+            print(f"  · {r['created_at'][:10]}  {r['text']}")
+        print(f"\n  {len(rows)} Eintraege.\n")
     elif args.text:
         db.execute("INSERT INTO feedback (text) VALUES (?)", (args.text,))
         db.execute("COMMIT")
-        print(f"  ✓ Feedback gespeichert.")
+        print("  ✓ Gespeichert")
     else:
-        print("Usage: pulse feedback \"dein feedback\"  |  pulse feedback --list")
+        print("  pulse feedback \"text\"  |  pulse feedback --list")
 
 
 def _cmd_launch() -> None:

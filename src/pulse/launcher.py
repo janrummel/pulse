@@ -21,17 +21,7 @@ from pulse.db import PulseDB
 _DEFAULT_DB_PATH = str(Path.home() / ".pulse" / "pulse.db")
 _ORCHESTRATOR_DIR = Path.home() / ".claude" / "orchestrator" / "projects"
 
-_CAT_LABELS = {
-    "tools": "Tools",
-    "learning": "Learning",
-    "system": "System",
-    "research": "Research",
-    "content": "Content",
-    "career": "Career",
-}
-
-_STATUS_DOT = {"active": "●", "paused": "○", "done": "✓"}
-_STATUS_STYLE = {"active": "green", "paused": "yellow", "done": "dim"}
+from pulse import theme
 
 
 def _load_project_context(project_name: str) -> str:
@@ -110,8 +100,8 @@ class ProjectItem(ListItem):
     def compose(self) -> ComposeResult:
         p = self.project
         status = p["status"]
-        dot = _STATUS_DOT.get(status, "·")
-        style = _STATUS_STYLE.get(status, "")
+        dot = theme.STATUS_DOT.get(status, "·")
+        style = theme.STATUS_STYLE.get(status, "")
         name = p["name"]
         ptype = " ↻" if p.get("project_type") == "continuous" else ""
 
@@ -136,7 +126,7 @@ class DetailPanel(Static):
         name = project["name"]
         status = project["status"]
         path = project["path"]
-        cat = _CAT_LABELS.get(project.get("category", ""), "")
+        cat = theme.CATEGORY_LABEL.get(project.get("category", ""), "")
 
         lines = []
         lines.append(f"  {name}")
