@@ -5,8 +5,11 @@ Commands:
     pulse install                  Install hooks into Claude Code settings
     pulse uninstall                Remove hooks from Claude Code settings
     pulse add <name> <path>        Register a project
-    pulse status                   Show all projects
-    pulse project <name>           Show project details
+    pulse status                   Show all projects (Rich)
+    pulse project <name>           Show project details (Rich)
+    pulse metrics [project]        Show metrics for a project
+    pulse priority                 Show priority ranking
+    pulse dashboard                Live TUI dashboard
     pulse task done <project> <task>  Mark a task as done
 """
 
@@ -64,6 +67,17 @@ def main(argv: list[str] | None = None) -> None:
     p_task_add.add_argument("task_name", help="Task name")
     p_task_add.add_argument("--estimate", type=float, help="Estimated minutes")
 
+    # dashboard
+    p_dash = sub.add_parser("dashboard", help="Live TUI dashboard")
+    p_dash.add_argument("--db", help="DB path (default: ~/.pulse/pulse.db)")
+
+    # metrics
+    p_metrics = sub.add_parser("metrics", help="Show metrics snapshot")
+    p_metrics.add_argument("project", nargs="?", help="Project name (optional)")
+
+    # priority
+    sub.add_parser("priority", help="Show priority ranking")
+
     args = parser.parse_args(argv)
 
     if args.command == "collect":
@@ -80,6 +94,12 @@ def main(argv: list[str] | None = None) -> None:
         _cmd_project(args)
     elif args.command == "task":
         _cmd_task(args)
+    elif args.command == "dashboard":
+        _cmd_dashboard(args)
+    elif args.command == "metrics":
+        _cmd_metrics(args)
+    elif args.command == "priority":
+        _cmd_priority()
     else:
         parser.print_help()
 
@@ -230,3 +250,62 @@ def _cmd_task(args: argparse.Namespace) -> None:
 
     else:
         print("Usage: pulse task {done|add} <project> <task_name>")
+
+
+def _cmd_dashboard(args: argparse.Namespace) -> None:
+    """Launch the live TUI dashboard."""
+    from pulse.dashboard import run_dashboard
+    db_path = args.db or _DEFAULT_DB_PATH
+    run_dashboard(db_path)
+
+
+def _cmd_metrics(args: argparse.Namespace) -> None:
+    """Show metrics snapshot."""
+    from pulse.dashboard import print_snapshot
+    print_snapshot(_DEFAULT_DB_PATH, project_name=args.project)
+
+
+def _cmd_priority() -> None:
+    """Show priority ranking."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from pulse.analyzer import Analyzer
+    from pulse.planner import Planner
+
+    db = PulseDB(_DEFAULT_DB_PATH)
+    analyzer = Analyzer(db)
+    planner = Planner(db, analyzer)
+
+    ranking = planner.priority_ranking()
+    if not ranking:
+        print("Keine Projekte registriert.")
+        return
+
+    console = Console()
+    table = Table(title="Priority Ranking", show_lines=False)
+    table.add_column("#", width=3)
+    table.add_column("Projekt", width=20)
+    table.add_column("Urgency", width=8, justify="right")
+    table.add_column("Grund", width=45)
+
+    for i, entry in enumerate(ranking, 1):
+        urgency = entry["urgency"]
+        if urgency >= 0.8:
+            style = "bold red"
+        elif urgency >= 0.5:
+            style = "yellow"
+        else:
+            style = "dim"
+
+        table.add_row(
+            str(i),
+            entry["project"]["name"],
+            f"{urgency:.1f}",
+            entry["reason"],
+            style=style,
+        )
+
+    console.print()
+    console.print(table)
+    console.print()
