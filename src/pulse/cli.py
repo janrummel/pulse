@@ -85,6 +85,11 @@ def main(argv: list[str] | None = None) -> None:
     p_track.add_argument("--apply", action="store_true", help="Auto-apply high-confidence signals")
     p_track.add_argument("--min-confidence", type=float, default=0.7, help="Min confidence for auto-apply")
 
+    # feedback
+    p_fb = sub.add_parser("feedback", help="Feedback erfassen oder anzeigen")
+    p_fb.add_argument("text", nargs="?", help="Feedback-Text")
+    p_fb.add_argument("--list", action="store_true", help="Alle Feedbacks anzeigen")
+
     # launch
     sub.add_parser("launch", help="Interactive project launcher")
 
@@ -121,6 +126,8 @@ def main(argv: list[str] | None = None) -> None:
         _cmd_recap(args)
     elif args.command == "track":
         _cmd_track(args)
+    elif args.command == "feedback":
+        _cmd_feedback(args)
     elif args.command == "launch":
         _cmd_launch()
     elif args.command == "dashboard":
@@ -537,6 +544,36 @@ def _cmd_track(args: argparse.Namespace) -> None:
     else:
         console.print("\n[dim]Nutze --apply um Tasks automatisch als done zu markieren.[/dim]")
     console.print()
+
+
+def _cmd_feedback(args: argparse.Namespace) -> None:
+    """Capture or list feedback."""
+    db = PulseDB(_DEFAULT_DB_PATH)
+
+    # Ensure feedback table exists
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            text TEXT NOT NULL
+        )
+    """)
+
+    if args.list:
+        rows = db.execute("SELECT * FROM feedback ORDER BY created_at DESC").fetchall()
+        if not rows:
+            print("Noch kein Feedback erfasst.")
+            return
+        for r in rows:
+            r = dict(r)
+            print(f"  {r['created_at']}  {r['text']}")
+        print(f"\n  {len(rows)} Eintraege.")
+    elif args.text:
+        db.execute("INSERT INTO feedback (text) VALUES (?)", (args.text,))
+        db.execute("COMMIT")
+        print(f"  ✓ Feedback gespeichert.")
+    else:
+        print("Usage: pulse feedback \"dein feedback\"  |  pulse feedback --list")
 
 
 def _cmd_launch() -> None:
