@@ -276,15 +276,11 @@ class PulseLauncher(App):
 
             print()
 
-            next_step = _load_project_context(project["name"])
-            prompt = f'Dein aktives Projekt ist {project["name"]}. '
-            if next_step and next_step != "Kein naechster Schritt definiert.":
-                prompt += f"Naechster Schritt: {next_step}"
-
             try:
-                # Start Claude with project context as initial prompt
+                # Start Claude interactively in project directory
+                # Context comes from: CLAUDE.md + orchestrator session-start hook
                 subprocess.run(
-                    ["claude", "--prompt", prompt],
+                    ["claude"],
                     cwd=project_path,
                 )
             except FileNotFoundError:
