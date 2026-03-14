@@ -107,8 +107,10 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.command is None:
-        # No subcommand → launch interactive command center
-        _cmd_launch()
+        # No subcommand → unified Pulse app
+        from pulse.app import run_app
+        run_app()
+        return
     elif args.command == "collect":
         _cmd_collect(args)
     elif args.command == "install":
