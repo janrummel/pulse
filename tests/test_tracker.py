@@ -12,7 +12,7 @@ from pulse.tracker import TaskTracker, TaskSignal
 def db(tmp_path):
     db_path = tmp_path / "test.db"
     db = PulseDB(str(db_path))
-    pid = db.add_project(name="watchdog", path="/Users/jan/Projects/watchdog", total_tasks=5)
+    pid = db.add_project(name="example-app", path="/tmp/projects/example-app", total_tasks=5)
     db.add_task(project_id=pid, name="vault.py")
     db.add_task(project_id=pid, name="scanner.py")
     db.add_task(project_id=pid, name="proxy.py")
@@ -47,7 +47,7 @@ def _insert_events(db, session_id, project_path, events_spec):
 
 class TestCommitDetection:
     def test_detects_commit_mentioning_task(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Bash",
                 "tool_input_summary": 'bash: git commit -m "vault.py + tests fertig"',
@@ -60,7 +60,7 @@ class TestCommitDetection:
         assert "vault.py" in task_names
 
     def test_commit_with_multiple_tasks(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Bash",
                 "tool_input_summary": 'bash: git commit -m "scanner.py und proxy.py implementiert"',
@@ -74,7 +74,7 @@ class TestCommitDetection:
         assert "proxy.py" in task_names
 
     def test_failed_commit_ignored(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Bash",
                 "tool_input_summary": 'bash: git commit -m "vault.py done"',
@@ -86,7 +86,7 @@ class TestCommitDetection:
         assert len(signals) == 0
 
     def test_no_match_returns_empty(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Bash",
                 "tool_input_summary": 'bash: git commit -m "refactored imports"',
@@ -100,7 +100,7 @@ class TestCommitDetection:
 
 class TestWriteTestPattern:
     def test_detects_write_then_test_success(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Write",
                 "tool_input_summary": "file: src/vault.py",
@@ -125,7 +125,7 @@ class TestWriteTestPattern:
         assert "vault.py" in task_names
 
     def test_write_then_test_fail_no_signal(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Write",
                 "tool_input_summary": "file: src/vault.py",
@@ -147,7 +147,7 @@ class TestWriteTestPattern:
 
 class TestPromptTransition:
     def test_detects_topic_switch(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "UserPromptSubmit", {
                 "prompt_text": "Baue vault.py mit Tests",
             }),
@@ -167,7 +167,7 @@ class TestPromptTransition:
         assert "vault.py" in task_names
 
     def test_no_signal_on_first_prompt(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "UserPromptSubmit", {
                 "prompt_text": "Baue vault.py mit Tests",
             }),
@@ -178,7 +178,7 @@ class TestPromptTransition:
 
 class TestSignalProperties:
     def test_signal_has_confidence(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Bash",
                 "tool_input_summary": 'bash: git commit -m "vault.py fertig"',
@@ -191,7 +191,7 @@ class TestSignalProperties:
         assert 0.0 <= signals[0].confidence <= 1.0
 
     def test_commit_has_highest_confidence(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Bash",
                 "tool_input_summary": 'bash: git commit -m "vault.py done"',
@@ -203,7 +203,7 @@ class TestSignalProperties:
         assert signals[0].confidence >= 0.8
 
     def test_signal_has_type(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Bash",
                 "tool_input_summary": 'bash: git commit -m "vault.py"',
@@ -216,12 +216,12 @@ class TestSignalProperties:
 
     def test_only_pending_tasks_signaled(self, tracker, db):
         """Tasks already marked done should not be signaled again."""
-        project = db.get_project("watchdog")
+        project = db.get_project("example-app")
         tasks = db.get_tasks(project["id"])
         vault_task = [t for t in tasks if t["name"] == "vault.py"][0]
         db.update_task(vault_task["id"], status="done")
 
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Bash",
                 "tool_input_summary": 'bash: git commit -m "vault.py updates"',
@@ -236,7 +236,7 @@ class TestSignalProperties:
 
 class TestApplySignals:
     def test_apply_marks_task_done(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "PostToolUse", {
                 "tool_name": "Bash",
                 "tool_input_summary": 'bash: git commit -m "vault.py fertig"',
@@ -248,13 +248,13 @@ class TestApplySignals:
         applied = tracker.apply_signals(signals, min_confidence=0.7)
         assert len(applied) > 0
 
-        project = db.get_project("watchdog")
+        project = db.get_project("example-app")
         tasks = db.get_tasks(project["id"])
         vault = [t for t in tasks if t["name"] == "vault.py"][0]
         assert vault["status"] == "done"
 
     def test_low_confidence_not_applied(self, tracker, db):
-        _insert_events(db, "s1", "/Users/jan/Projects/watchdog", [
+        _insert_events(db, "s1", "/tmp/projects/example-app", [
             (0, "UserPromptSubmit", {"prompt_text": "Baue vault.py"}),
             (60, "PostToolUse", {
                 "tool_name": "Write",

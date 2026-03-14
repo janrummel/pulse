@@ -22,27 +22,27 @@ def seed(db_path: str | None = None) -> PulseDB:
 
     # --- Projects ---
     p1 = db.add_project(
-        name="watchdog",
-        path="/Users/jan/Projects/watchdog",
+        name="example-app",
+        path="/tmp/projects/example-app",
         deadline="2026-03-19T08:59:00",
         total_tasks=12,
         status="active",
     )
     p2 = db.add_project(
-        name="knowledge-factory",
-        path="/Users/jan/Projects/kfactory",
+        name="data-pipeline",
+        path="/tmp/projects/data-pipeline",
         total_tasks=8,
         status="active",
     )
     p3 = db.add_project(
-        name="orchestrator",
-        path="/Users/jan/Projects/orchestrator",
+        name="infra-tools",
+        path="/tmp/projects/infra-tools",
         total_tasks=6,
         status="paused",
     )
 
-    # --- Tasks for watchdog ---
-    tasks_watchdog = [
+    # --- Tasks for example-app ---
+    tasks_app = [
         ("vault.py", "done", 3.0, 0),
         ("scanner.py + patterns", "done", 12.0, 1),
         ("proxy.py", "done", 47.0, 6),
@@ -56,13 +56,13 @@ def seed(db_path: str | None = None) -> PulseDB:
         ("tests", "pending", None, 0),
         ("demo.sh", "pending", None, 0),
     ]
-    for name, status, actual, debug in tasks_watchdog:
+    for name, status, actual, debug in tasks_app:
         tid = db.add_task(project_id=p1, name=name, estimated_minutes=actual)
         db.update_task(tid, status=status, actual_minutes=actual, debug_cycles=debug)
 
-    db.update_project("watchdog", completed_tasks=5)
+    db.update_project("example-app", completed_tasks=5)
 
-    # --- Tasks for knowledge-factory ---
+    # --- Tasks for data-pipeline ---
     tasks_kf = [
         ("pipeline.py", "done", 18.0, 2),
         ("indexer.py", "done", 8.0, 0),
@@ -77,11 +77,11 @@ def seed(db_path: str | None = None) -> PulseDB:
         tid = db.add_task(project_id=p2, name=name)
         db.update_task(tid, status=status, actual_minutes=actual, debug_cycles=debug)
 
-    db.update_project("knowledge-factory", completed_tasks=3)
+    db.update_project("data-pipeline", completed_tasks=3)
 
     # --- Sessions ---
-    _seed_sessions(db, "/Users/jan/Projects/watchdog", "watchdog", 3)
-    _seed_sessions(db, "/Users/jan/Projects/kfactory", "kfactory", 2)
+    _seed_sessions(db, "/tmp/projects/example-app", "example-app", 3)
+    _seed_sessions(db, "/tmp/projects/data-pipeline", "data-pipeline", 2)
 
     return db
 

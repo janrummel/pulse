@@ -31,18 +31,18 @@ def empty_planner(tmp_path):
 
 class TestProjectForecast:
     def test_returns_forecast(self, planner):
-        forecast = planner.project_forecast("watchdog")
+        forecast = planner.project_forecast("example-app")
         assert forecast is not None
         assert "remaining_tasks" in forecast
         assert "status" in forecast
         assert "recommendation" in forecast
 
     def test_remaining_tasks_correct(self, planner):
-        forecast = planner.project_forecast("watchdog")
+        forecast = planner.project_forecast("example-app")
         assert forecast["remaining_tasks"] == 7  # 12 total - 5 done
 
     def test_status_is_valid(self, planner):
-        forecast = planner.project_forecast("watchdog")
+        forecast = planner.project_forecast("example-app")
         assert forecast["status"] in ("on_track", "at_risk", "insufficient_data")
 
     def test_nonexistent_project(self, planner):
@@ -50,12 +50,12 @@ class TestProjectForecast:
         assert forecast is None
 
     def test_no_deadline_project(self, planner):
-        forecast = planner.project_forecast("knowledge-factory")
+        forecast = planner.project_forecast("data-pipeline")
         assert forecast is not None
         assert forecast["status"] == "no_deadline"
 
     def test_recommendation_is_string(self, planner):
-        forecast = planner.project_forecast("watchdog")
+        forecast = planner.project_forecast("example-app")
         assert isinstance(forecast["recommendation"], str)
         assert len(forecast["recommendation"]) > 0
 

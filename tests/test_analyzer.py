@@ -32,7 +32,7 @@ def empty_analyzer(tmp_path):
 
 class TestToolMix:
     def test_returns_percentages(self, analyzer):
-        mix = analyzer.tool_mix("/Users/jan/Projects/watchdog")
+        mix = analyzer.tool_mix("/tmp/projects/example-app")
         assert "write_pct" in mix
         assert "edit_pct" in mix
         assert "bash_pct" in mix
@@ -40,7 +40,7 @@ class TestToolMix:
         assert "explore_pct" in mix
 
     def test_percentages_sum_to_roughly_100(self, analyzer):
-        mix = analyzer.tool_mix("/Users/jan/Projects/watchdog")
+        mix = analyzer.tool_mix("/tmp/projects/example-app")
         total = mix["write_pct"] + mix["edit_pct"] + mix["bash_pct"] + mix["read_pct"] + mix["explore_pct"] + mix["other_pct"]
         assert 99.0 <= total <= 101.0
 
@@ -49,24 +49,24 @@ class TestToolMix:
         assert mix["total_tool_calls"] == 0
 
     def test_has_interpretation(self, analyzer):
-        mix = analyzer.tool_mix("/Users/jan/Projects/watchdog")
+        mix = analyzer.tool_mix("/tmp/projects/example-app")
         assert "interpretation" in mix
         assert isinstance(mix["interpretation"], str)
 
 
 class TestDebugRatio:
     def test_returns_ratio(self, analyzer):
-        result = analyzer.debug_ratio(project_path="/Users/jan/Projects/watchdog")
+        result = analyzer.debug_ratio(project_path="/tmp/projects/example-app")
         assert "ratio" in result
         assert 0.0 <= result["ratio"] <= 1.0
 
     def test_has_debug_cycles(self, analyzer):
-        result = analyzer.debug_ratio(project_path="/Users/jan/Projects/watchdog")
+        result = analyzer.debug_ratio(project_path="/tmp/projects/example-app")
         assert "debug_cycles" in result
         assert result["debug_cycles"] >= 0
 
     def test_has_total_tool_calls(self, analyzer):
-        result = analyzer.debug_ratio(project_path="/Users/jan/Projects/watchdog")
+        result = analyzer.debug_ratio(project_path="/tmp/projects/example-app")
         assert result["total_tool_calls"] > 0
 
     def test_empty_returns_zero(self, empty_analyzer):
@@ -112,7 +112,7 @@ class TestSessionSummary:
 
 class TestProjectHealth:
     def test_returns_health(self, analyzer):
-        health = analyzer.project_health("watchdog")
+        health = analyzer.project_health("example-app")
         assert "tasks_done" in health
         assert "tasks_total" in health
         assert "avg_debug_ratio" in health
@@ -120,7 +120,7 @@ class TestProjectHealth:
         assert "trend" in health
 
     def test_tasks_count(self, analyzer):
-        health = analyzer.project_health("watchdog")
+        health = analyzer.project_health("example-app")
         assert health["tasks_done"] == 5
         assert health["tasks_total"] == 12
 

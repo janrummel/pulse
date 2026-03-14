@@ -59,7 +59,7 @@ Pulse beantwortet drei Fragen:
 │                    CLAUDE CODE SESSIONS                        │
 │                                                               │
 │  Projekt A          Projekt B          Projekt C              │
-│  (watchdog/)        (kfactory/)        (orchestrator/)        │
+│  (example-app/)        (data-pipeline/)        (orchestrator/)        │
 │       │                  │                   │                │
 │       └──── Hooks ───────┴──── Hooks ────────┘                │
 │              │                                                │
@@ -460,7 +460,7 @@ def _detect_debug_cycles(self, events: list[Event]) -> list[DebugCycle]:
 ```
 ┌─ 🫀 PULSE ──────────────────────────────────── 14:23 CET ────┐
 │                                                                │
-│  AKTIVE SESSION: watchdog/                    Model: opus      │
+│  AKTIVE SESSION: example-app/                    Model: opus      │
 │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
 │  Laufzeit: 23 min  │  Prompts: 7  │  Tool-Calls: 34           │
 │  Debug-Zyklen: 3   │  Human-Wait: 18%  │  Files: 6            │
@@ -474,8 +474,8 @@ def _detect_debug_cycles(self, events: list[Event]) -> list[DebugCycle]:
 │                                                                │
 │  PROJEKTE                                                      │
 │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
-│  🟢 watchdog        5/12 tasks  ▸ aktiv jetzt                  │
-│  🟡 knowledge-fac.  pipeline    ▸ vor 1 Tag                    │
+│  🟢 example-app        5/12 tasks  ▸ aktiv jetzt                  │
+│  🟡 data-pipeline  pipeline    ▸ vor 1 Tag                    │
 │  ⚪ orchestrator    paused      ▸ vor 3 Tagen                  │
 │                                                                │
 └──────────────── [p] projekte  [s] session  [q] quit ──────────┘
@@ -485,7 +485,7 @@ def _detect_debug_cycles(self, events: list[Event]) -> list[DebugCycle]:
 
 **[s] Session-Deep-Dive:**
 ```
-┌─ SESSION: watchdog/  abc123 ───────────── seit 23 min ────────┐
+┌─ SESSION: example-app/  abc123 ───────────── seit 23 min ────────┐
 │                                                                │
 │  TIMELINE                                                      │
 │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │
@@ -512,7 +512,7 @@ def _detect_debug_cycles(self, events: list[Event]) -> list[DebugCycle]:
 
 **[p] Projekt-Deep-Dive:**
 ```
-┌─ PROJEKT: watchdog ────────────── Deadline: Mi 19.3. 08:59 ──┐
+┌─ PROJEKT: example-app ────────────── Deadline: Mi 19.3. 08:59 ──┐
 │                                                                │
 │  FORTSCHRITT                                                   │
 │  ████████████████░░░░░░░░░░░░░░  5/12 Tasks (42%)             │
@@ -703,8 +703,8 @@ Pulse schreibt Session-Summaries in das Orchestrator Memory-System:
 ```
 memory/
 ├── projects/
-│   ├── watchdog.md          ← Manuell gepflegt
-│   └── watchdog-pulse.md    ← Von Pulse generiert/aktualisiert
+│   ├── example-app.md          ← Manuell gepflegt
+│   └── example-app-pulse.md    ← Von Pulse generiert/aktualisiert
 ```
 
 ---
@@ -758,8 +758,8 @@ pulse install
 # → Pulse sammelt ab jetzt Daten aus allen Claude Code Sessions
 
 # Projekt registrieren
-pulse add watchdog ~/projects/watchdog --deadline "2026-03-19 08:59" --tasks 12
-pulse add knowledge-factory ~/projects/kfactory
+pulse add example-app ~/projects/example-app --deadline "2026-03-19 08:59" --tasks 12
+pulse add data-pipeline ~/projects/data-pipeline
 pulse add orchestrator ~/projects/orchestrator --status paused
 
 # Status aller Projekte
@@ -767,13 +767,13 @@ pulse status
 # → Zeigt alle Projekte mit Fortschritt, letzter Session, Trend
 
 # Detail-Status eines Projekts
-pulse project watchdog
+pulse project example-app
 # → Tasks, Velocity, Debug-Ratio, Prognose
 
 # Prioritäts-Empfehlung
 pulse priority
-# → "1. watchdog (Deadline in 2 Tagen, on track)
-# →  2. knowledge-factory (Pipeline-Refresh überfällig)
+# → "1. example-app (Deadline in 2 Tagen, on track)
+# →  2. data-pipeline (Pipeline-Refresh überfällig)
 # →  3. orchestrator (paused, keine Aktion nötig)"
 
 # Live-Dashboard starten
@@ -785,12 +785,12 @@ pulse session <session_id>
 # → Timeline, Tool-Mix, Debug-Zyklen
 
 # Task als erledigt markieren
-pulse task done watchdog alerter.py
+pulse task done example-app alerter.py
 # → Task updated, Velocity neu berechnet
 
 # Export nach Obsidian
-pulse export watchdog --vault ~/Obsidian/Projects/
-# → Schreibt pulse/watchdog.md in den Vault
+pulse export example-app --vault ~/exports/
+# → Schreibt pulse/example-app.md in den Vault
 
 # Demo-Daten generieren (für Tests und Screenshots)
 pulse seed-demo
@@ -865,7 +865,7 @@ dashboard:
 
 # Export
 export:
-  obsidian_vault: "~/Obsidian/Projects/"
+  obsidian_vault: "~/exports/"
   auto_export: false         # Bei jedem Session-Ende exportieren?
 
 # Projekte werden via CLI registriert, nicht in der Config

@@ -27,7 +27,7 @@ def db_with_events(db):
             "timestamp": base_time.isoformat(),
             "session_id": session_id,
             "event_type": "SessionStart",
-            "project_path": "/Users/jan/Projects/watchdog",
+            "project_path": "/tmp/projects/example-app",
             "model": "claude-opus-4-6",
             "tool_name": None,
             "tool_input_summary": None,
@@ -40,7 +40,7 @@ def db_with_events(db):
             "timestamp": (base_time + timedelta(seconds=30)).isoformat(),
             "session_id": session_id,
             "event_type": "UserPromptSubmit",
-            "project_path": "/Users/jan/Projects/watchdog",
+            "project_path": "/tmp/projects/example-app",
             "model": None,
             "tool_name": None,
             "tool_input_summary": None,
@@ -53,7 +53,7 @@ def db_with_events(db):
             "timestamp": (base_time + timedelta(minutes=1)).isoformat(),
             "session_id": session_id,
             "event_type": "PreToolUse",
-            "project_path": "/Users/jan/Projects/watchdog",
+            "project_path": "/tmp/projects/example-app",
             "model": None,
             "tool_name": "Write",
             "tool_input_summary": "file: src/vault.py",
@@ -66,7 +66,7 @@ def db_with_events(db):
             "timestamp": (base_time + timedelta(minutes=1, seconds=15)).isoformat(),
             "session_id": session_id,
             "event_type": "PostToolUse",
-            "project_path": "/Users/jan/Projects/watchdog",
+            "project_path": "/tmp/projects/example-app",
             "model": None,
             "tool_name": "Write",
             "tool_input_summary": "file: src/vault.py",
@@ -79,7 +79,7 @@ def db_with_events(db):
             "timestamp": (base_time + timedelta(minutes=2)).isoformat(),
             "session_id": session_id,
             "event_type": "PreToolUse",
-            "project_path": "/Users/jan/Projects/watchdog",
+            "project_path": "/tmp/projects/example-app",
             "model": None,
             "tool_name": "Bash",
             "tool_input_summary": "bash: pytest",
@@ -92,7 +92,7 @@ def db_with_events(db):
             "timestamp": (base_time + timedelta(minutes=2, seconds=10)).isoformat(),
             "session_id": session_id,
             "event_type": "PostToolUse",
-            "project_path": "/Users/jan/Projects/watchdog",
+            "project_path": "/tmp/projects/example-app",
             "model": None,
             "tool_name": "Bash",
             "tool_input_summary": "bash: pytest",
@@ -105,7 +105,7 @@ def db_with_events(db):
             "timestamp": (base_time + timedelta(minutes=10)).isoformat(),
             "session_id": session_id,
             "event_type": "Stop",
-            "project_path": "/Users/jan/Projects/watchdog",
+            "project_path": "/tmp/projects/example-app",
             "model": None,
             "tool_name": None,
             "tool_input_summary": None,
@@ -181,7 +181,7 @@ class TestEventInsert:
             "timestamp": "2026-03-14T14:00:00",
             "session_id": "sess_001",
             "event_type": "SessionStart",
-            "project_path": "/Users/jan/Projects/test",
+            "project_path": "/tmp/projects/test",
             "model": "claude-opus-4-6",
             "tool_name": None,
             "tool_input_summary": None,
@@ -215,7 +215,7 @@ class TestEventInsert:
             "timestamp": "2026-03-14T14:01:00",
             "session_id": "sess_002",
             "event_type": "PreToolUse",
-            "project_path": "/Users/jan/Projects/test",
+            "project_path": "/tmp/projects/test",
             "model": None,
             "tool_name": "Write",
             "tool_input_summary": "file: src/main.py",
@@ -249,7 +249,7 @@ class TestEventQueries:
 
     def test_get_events_by_project(self, db_with_events):
         db, _ = db_with_events
-        events = db.get_events_by_project("/Users/jan/Projects/watchdog")
+        events = db.get_events_by_project("/tmp/projects/example-app")
         assert len(events) == 7
 
     def test_get_session_ids(self, db_with_events):
@@ -261,18 +261,18 @@ class TestEventQueries:
 class TestProjectManagement:
     def test_add_project(self, db):
         project_id = db.add_project(
-            name="watchdog",
-            path="/Users/jan/Projects/watchdog",
+            name="example-app",
+            path="/tmp/projects/example-app",
             deadline="2026-03-19T08:59:00",
             total_tasks=12,
         )
         assert isinstance(project_id, int)
 
     def test_get_project(self, db):
-        db.add_project(name="watchdog", path="/tmp/wd")
-        project = db.get_project("watchdog")
+        db.add_project(name="example-app", path="/tmp/wd")
+        project = db.get_project("example-app")
         assert project is not None
-        assert project["name"] == "watchdog"
+        assert project["name"] == "example-app"
         assert project["status"] == "active"
 
     def test_get_project_not_found(self, db):

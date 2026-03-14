@@ -52,9 +52,9 @@ class TestInstallCommand:
 
 class TestAddCommand:
     def test_add_project(self, mock_db_path, capsys):
-        main(["add", "watchdog", "/tmp/watchdog", "--tasks", "12"])
+        main(["add", "example-app", "/tmp/example-app", "--tasks", "12"])
         db = PulseDB(mock_db_path)
-        project = db.get_project("watchdog")
+        project = db.get_project("example-app")
         assert project is not None
         assert project["total_tasks"] == 12
 

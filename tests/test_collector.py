@@ -20,7 +20,7 @@ def db(tmp_path):
 def _make_hook_payload(
     event_type: str,
     session_id: str = "sess_test_001",
-    cwd: str = "/Users/jan/Projects/watchdog",
+    cwd: str = "/tmp/projects/example-app",
     **extra,
 ) -> dict:
     """Build a realistic hook payload."""
@@ -120,7 +120,7 @@ class TestCollect:
         assert len(events) == 1
         assert events[0]["event_type"] == "SessionStart"
         assert events[0]["model"] == "claude-opus-4-6"
-        assert events[0]["project_path"] == "/Users/jan/Projects/watchdog"
+        assert events[0]["project_path"] == "/tmp/projects/example-app"
 
     def test_session_start_creates_session_record(self, db):
         payload = _make_hook_payload(
