@@ -1,0 +1,19 @@
+# Pulse Configuration
+# Copy to ~/.pulse/config.yaml and adjust to your setup.
+
+# Database
+db_path: ~/.pulse/pulse.db
+
+# Claude Code settings.json location
+claude_settings_path: ~/.claude/settings.json
+
+# Orchestrator project files (optional — launcher loads next steps from here)
+# Set to empty string to disable orchestrator integration
+orchestrator_dir: ~/.claude/orchestrator/projects
+
+# UI language (de or en)
+language: de
+
+# Dashboard settings
+dashboard:
+  refresh_interval: 3.0

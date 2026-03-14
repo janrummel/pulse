@@ -11,7 +11,9 @@ from pathlib import Path
 _P1_EVENTS = ["SessionStart", "SessionEnd", "PreToolUse", "PostToolUse",
               "UserPromptSubmit", "Stop"]
 _TOOL_EVENTS = {"PreToolUse", "PostToolUse"}
-_DEFAULT_SETTINGS_PATH = str(Path.home() / ".claude" / "settings.json")
+from pulse.config import config as _cfg
+
+_DEFAULT_SETTINGS_PATH = _cfg.claude_settings_path
 
 
 def _find_pulse_binary() -> str:

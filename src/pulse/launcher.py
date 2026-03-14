@@ -16,12 +16,12 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Footer, Header, Label, ListItem, ListView, Static
 
 from pulse.analyzer import Analyzer
+from pulse.config import config as _cfg
 from pulse.db import PulseDB
-
-_DEFAULT_DB_PATH = str(Path.home() / ".pulse" / "pulse.db")
-_ORCHESTRATOR_DIR = Path.home() / ".claude" / "orchestrator" / "projects"
-
 from pulse import theme
+
+_DEFAULT_DB_PATH = _cfg.db_path
+_ORCHESTRATOR_DIR = Path(_cfg.orchestrator_dir)
 
 
 def _load_project_context(project_name: str) -> str:

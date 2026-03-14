@@ -11,7 +11,9 @@ from pathlib import Path
 
 from pulse.db import PulseDB
 
-_DEFAULT_DB_PATH = str(Path.home() / ".pulse" / "pulse.db")
+from pulse.config import config as _cfg
+
+_DEFAULT_DB_PATH = _cfg.db_path
 _ERROR_INDICATORS = ("error", "Error", "FAILED", "Traceback", "Exception", "FATAL")
 
 

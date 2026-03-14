@@ -22,8 +22,10 @@ from pulse.db import PulseDB
 from pulse.planner import Planner
 from pulse import theme
 
-_DEFAULT_DB_PATH = str(Path.home() / ".pulse" / "pulse.db")
-_ORCHESTRATOR_DIR = Path.home() / ".claude" / "orchestrator" / "projects"
+from pulse.config import config as _cfg
+
+_DEFAULT_DB_PATH = _cfg.db_path
+_ORCHESTRATOR_DIR = Path(_cfg.orchestrator_dir)
 
 
 # ── Helpers ────────────────────────────────────────────────────────

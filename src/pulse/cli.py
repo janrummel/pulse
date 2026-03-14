@@ -23,7 +23,9 @@ from pulse.collector import collect
 from pulse.db import PulseDB
 from pulse.hooks import install_hooks, uninstall_hooks
 
-_DEFAULT_DB_PATH = str(Path.home() / ".pulse" / "pulse.db")
+from pulse.config import config as _cfg
+
+_DEFAULT_DB_PATH = _cfg.db_path
 
 
 def main(argv: list[str] | None = None) -> None:
