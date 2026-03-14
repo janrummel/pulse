@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pulse — The heartbeat of your Claude Code projects</title>
+    <meta name="description" content="Measurement and live-planning agent for Claude Code. Tracks velocity, debug cycles, and think-time via hooks. Open source.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🫀</text></svg>">
     <style>
         :root {
             --bg: #0d1117;
@@ -123,7 +125,7 @@
             <span class="badge">Rich + Textual</span>
         </div>
         <div class="install-box">
-            <span class="p">$</span> <span class="c">pip install pulse-claude</span><br>
+            <span class="p">$</span> <span class="c">pipx install git+https://github.com/janrummel/pulse.git</span><br>
             <span class="p">$</span> <span class="c">pulse install</span><br>
             <span class="p">$</span> <span class="c">pulse</span>
         </div>
@@ -131,6 +133,7 @@
 
     <div class="section">
         <h2>One app, four views</h2>
+        <p style="text-align:center; color:var(--dim); margin-bottom:16px;">Type <code style="color:var(--text)">pulse</code> to open the interactive TUI. Switch views with number keys.</p>
         <div class="keys">
             <span class="key"><kbd>1</kbd> Launcher</span>
             <span class="key"><kbd>2</kbd> Dashboard</span>
@@ -166,7 +169,7 @@
   34 min   47 calls   <span class="r">3 debug</span>   18% think
 
 
-<span class="b y">Tool-Mix  Balanced</span>
+<span class="b y">Tool-Mix  Heavy testing</span>
 
   <span class="d">Write </span> <span class="g">&#9608;&#9608;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;</span> <span class="d">16%</span>
   <span class="d">Edit  </span> <span class="y">&#9608;&#9608;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;</span> <span class="d">22%</span>
@@ -232,6 +235,10 @@
     </div>
 
     <!-- Features -->
+    <div class="section" style="text-align:center; margin-bottom:32px;">
+        <a href="https://github.com/janrummel/pulse" style="display:inline-block; padding:10px 28px; background:var(--blue); color:#fff; border-radius:8px; text-decoration:none; font-weight:600; font-size:15px;">View on GitHub</a>
+    </div>
+
     <div class="section">
         <h2>What Pulse measures</h2>
         <div class="grid">
