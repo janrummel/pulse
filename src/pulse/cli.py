@@ -10,6 +10,7 @@ Commands:
     pulse metrics [project]        Show metrics for a project
     pulse priority                 Show priority ranking
     pulse dashboard                Live TUI dashboard
+    pulse report                   Generate static HTML report
     pulse task done <project> <task>  Mark a task as done
 """
 
@@ -106,6 +107,11 @@ def main(argv: list[str] | None = None) -> None:
     # priority
     sub.add_parser("priority", help="Show priority ranking")
 
+    # report
+    p_report = sub.add_parser("report", help="Generate HTML report")
+    p_report.add_argument("--output", help="Output path (default: ~/.pulse/report.html)")
+    p_report.add_argument("--no-open", action="store_true", help="Skip opening in browser")
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -143,6 +149,8 @@ def main(argv: list[str] | None = None) -> None:
         _cmd_metrics(args)
     elif args.command == "priority":
         _cmd_priority()
+    elif args.command == "report":
+        _cmd_report(args)
     else:
         parser.print_help()
 
@@ -588,3 +596,15 @@ def _cmd_priority() -> None:
     console.print()
     console.print(table)
     console.print()
+
+
+def _cmd_report(args: argparse.Namespace) -> None:
+    """Generate a static HTML report from Pulse data."""
+    from pulse.report import generate_report
+
+    out = generate_report(
+        db_path=_DEFAULT_DB_PATH,
+        output_path=args.output,
+        open_browser=not args.no_open,
+    )
+    print(f"  Report: {out}")
