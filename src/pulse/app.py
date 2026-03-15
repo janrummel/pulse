@@ -295,6 +295,7 @@ class PulseApp(App):
         Binding("2", "show_dashboard", "Dashboard"),
         Binding("3", "show_recap", "Recap"),
         Binding("4", "show_portfolio", "Portfolio"),
+        Binding("r", "open_report", "Report"),
         Binding("q", "quit", "Beenden"),
     ]
 
@@ -302,7 +303,7 @@ class PulseApp(App):
 
     def compose(self) -> ComposeResult:
         yield Label(
-            " [1] Launcher  [2] Dashboard  [3] Recap  [4] Portfolio  [q] Beenden",
+            " [1] Launcher  [2] Dashboard  [3] Recap  [4] Portfolio  [r] Report  [q] Beenden",
             id="tab-bar",
         )
         yield VerticalScroll(id="view-container")
@@ -320,29 +321,36 @@ class PulseApp(App):
         self.current_view = "launcher"
         self._switch_view(LauncherView())
         self.query_one("#tab-bar", Label).update(
-            " [bold][1] Launcher[/bold]  [2] Dashboard  [3] Recap  [4] Portfolio  [q] Beenden"
+            " [bold][1] Launcher[/bold]  [2] Dashboard  [3] Recap  [4] Portfolio  [r] Report  [q] Beenden"
         )
 
     def action_show_dashboard(self) -> None:
         self.current_view = "dashboard"
         self._switch_view(DashboardView())
         self.query_one("#tab-bar", Label).update(
-            " [1] Launcher  [bold][2] Dashboard[/bold]  [3] Recap  [4] Portfolio  [q] Beenden"
+            " [1] Launcher  [bold][2] Dashboard[/bold]  [3] Recap  [4] Portfolio  [r] Report  [q] Beenden"
         )
 
     def action_show_recap(self) -> None:
         self.current_view = "recap"
         self._switch_view(RecapView())
         self.query_one("#tab-bar", Label).update(
-            " [1] Launcher  [2] Dashboard  [bold][3] Recap[/bold]  [4] Portfolio  [q] Beenden"
+            " [1] Launcher  [2] Dashboard  [bold][3] Recap[/bold]  [4] Portfolio  [r] Report  [q] Beenden"
         )
 
     def action_show_portfolio(self) -> None:
         self.current_view = "portfolio"
         self._switch_view(PortfolioView())
         self.query_one("#tab-bar", Label).update(
-            " [1] Launcher  [2] Dashboard  [3] Recap  [bold][4] Portfolio[/bold]  [q] Beenden"
+            " [1] Launcher  [2] Dashboard  [3] Recap  [bold][4] Portfolio[/bold]  [r] Report  [q] Beenden"
         )
+
+    def action_open_report(self) -> None:
+        """Generate and open HTML report in browser."""
+        from pulse.report import generate_report
+        db_path = str(_DEFAULT_DB_PATH)
+        generate_report(db_path=db_path, open_browser=True)
+        self.notify("Report geöffnet im Browser")
 
     def _launch_claude(self, project: dict) -> None:
         """Suspend app, launch Claude, resume on exit."""
