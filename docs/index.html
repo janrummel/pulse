@@ -211,9 +211,8 @@
         <span class="d">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# TUI starten</span>
     </div>
 
-    <div class="cta" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <div class="cta">
         <a href="https://github.com/janrummel/pulse">View on GitHub</a>
-        <a href="report.html" style="background:transparent;border:1px solid var(--border);color:var(--text);">See example report</a>
     </div>
 
     <!-- Interactive Views -->
@@ -238,7 +237,7 @@
                     <div class="term-dot g"></div>
                     <span class="term-title">pulse</span>
                 </div>
-                <div class="term-body"><span class="b bl">[1] Launcher</span>  [2] Dashboard  [3] Recap  [4] Portfolio  [q] Quit
+                <div class="term-body"><span class="b bl">[1] Launcher</span>  [2] Dashboard  [3] Recap  [4] Portfolio  [r] Report  [q] Quit
 <span class="d">────────────────────────────────────────────────────────────────</span>
   <span class="g">&#9679; api-service</span>      <span class="d">│</span>
   <span class="g b">&#9679; cli-toolkit</span>      <span class="d">│</span>  <span class="b">cli-toolkit</span>
@@ -262,7 +261,7 @@
                     <div class="term-dot g"></div>
                     <span class="term-title">pulse</span>
                 </div>
-                <div class="term-body">  [1] Launcher  <span class="b bl">[2] Dashboard</span>  [3] Recap  [4] Portfolio  [q] Quit
+                <div class="term-body">  [1] Launcher  <span class="b bl">[2] Dashboard</span>  [3] Recap  [4] Portfolio  [r] Report  [q] Quit
 <span class="d">────────────────────────────────────────────────────────────────</span>
 <span class="b g">  Heute  2026-03-14</span>
 
@@ -294,7 +293,7 @@
                     <div class="term-dot g"></div>
                     <span class="term-title">pulse</span>
                 </div>
-                <div class="term-body">  [1] Launcher  [2] Dashboard  <span class="b bl">[3] Recap</span>  [4] Portfolio  [q] Quit
+                <div class="term-body">  [1] Launcher  [2] Dashboard  <span class="b bl">[3] Recap</span>  [4] Portfolio  [r] Report  [q] Quit
 <span class="d">────────────────────────────────────────────────────────────────</span>
   <span class="b">Daily Recap  2026-03-14</span>
 
@@ -323,7 +322,7 @@
                     <div class="term-dot g"></div>
                     <span class="term-title">pulse</span>
                 </div>
-                <div class="term-body">  [1] Launcher  [2] Dashboard  [3] Recap  <span class="b bl">[4] Portfolio</span>  [q] Quit
+                <div class="term-body">  [1] Launcher  [2] Dashboard  [3] Recap  <span class="b bl">[4] Portfolio</span>  [r] Report  [q] Quit
 <span class="d">────────────────────────────────────────────────────────────────</span>
   <span class="b cy">Tools</span>
   <span class="d">&#10003; config-wizard</span>
@@ -424,6 +423,19 @@
                 <h3>Consistency</h3>
                 <p>Same markers, colors, and spacing everywhere. One design system drives all views.</p>
             </div>
+        </div>
+    </div>
+
+    <!-- HTML Report -->
+    <div class="section animate-in">
+        <h2>Browser report</h2>
+        <p style="color:var(--dim); margin-bottom:20px; max-width:600px;">
+            Press <kbd style="background:#21262d;border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:'SF Mono',monospace;font-size:12px;color:var(--text);">r</kbd> in the TUI or run <code style="color:var(--text);">pulse report</code> to generate an interactive HTML dashboard from your session data. Charts, KPIs, and key insights — all from your local SQLite database.
+        </p>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;">
+            <p style="color:var(--dim);font-size:14px;margin-bottom:16px;">5 charts: Tool Mix, Error Rate, Events per Day, Prompts per Hour, Session Sizes</p>
+            <a href="report.html" style="display:inline-block;padding:10px 28px;background:var(--blue);color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">View example report</a>
+            <p style="color:var(--dim);font-size:12px;margin-top:12px;">Demo data — your real report is generated locally from your own sessions.</p>
         </div>
     </div>
 
