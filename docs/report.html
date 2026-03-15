@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pulse Report — Demo</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --text-dim: #848d97;
+            --text-heading: #e6edf3;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --yellow: #d29922;
+            --red: #f85149;
+            --font-sans: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'SF Mono', 'Fira Code', monospace;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            padding: 40px 24px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 {
+            font-size: 28px;
+            color: var(--text-heading);
+            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+        }
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        .intro {
+            color: var(--text-dim);
+            font-size: 14px;
+            margin-bottom: 32px;
+            max-width: 700px;
+            line-height: 1.6;
+        }
+        .intro a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .intro a:hover { text-decoration: underline; }
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+        .kpi {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .kpi-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--accent);
+            font-family: var(--font-mono);
+        }
+        .kpi-label {
+            font-size: 12px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+        .kpi-hint {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 6px;
+            opacity: 0.7;
+        }
+        .charts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 700px) {
+            .charts { grid-template-columns: 1fr; }
+        }
+        .chart-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .chart-card h3 {
+            font-size: 14px;
+            color: var(--text-heading);
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+        .chart-card.wide {
+            grid-column: 1 / -1;
+        }
+        canvas { max-height: 300px; }
+        .insights {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 32px;
+        }
+        .insights h2 {
+            font-size: 16px;
+            color: var(--text-heading);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .insights ul {
+            list-style: none;
+            padding: 0;
+        }
+        .insights li {
+            font-size: 14px;
+            color: var(--text);
+            padding: 4px 0;
+        }
+        .insights li::before {
+            content: "→ ";
+            color: var(--accent);
+        }
+        .chart-desc {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Pulse Report <span style="font-size:14px;color:var(--text-dim);font-weight:400;">(demo data)</span></h1>
+    <p class="subtitle">Generated 2026-03-15 20:26 &middot; Data from 2026-03-10 to 2026-03-14</p>
+    <p class="intro">Pulse tracks what happens inside your <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> sessions &mdash; every tool call, every prompt, every error. This report summarizes your activity so you can see patterns, spot bottlenecks, and understand how you work with AI.</p>
+
+    <div class="kpi-row">
+        <div class="kpi">
+            <div class="kpi-value">9,400</div>
+            <div class="kpi-label">Total Events</div>
+            <div class="kpi-hint">Tool calls, prompts, session events</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-value">24</div>
+            <div class="kpi-label">Sessions</div>
+            <div class="kpi-hint">One Claude Code conversation = one session</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-value">392</div>
+            <div class="kpi-label">Prompts</div>
+            <div class="kpi-hint">Messages you sent to Claude</div>
+        </div>
+    </div>
+
+    <div class="insights">
+        <h2>Key Insights</h2>
+        <ul><li>Agent has a 24.3% failure rate — failed calls need retries, costing time and tokens.</li><li>Bash dominates your tool mix at 34%.</li><li>Peak activity: 11:00 (52 prompts).</li><li>Largest session: 1,534 events (2026-03-14).</li></ul>
+    </div>
+    <div class="charts">
+        <div class="chart-card">
+            <h3>Tool Mix</h3>
+            <canvas id="toolMix" aria-label="Donut chart showing distribution of tool usage"></canvas>
+            <p class="chart-desc">Which Claude Code tools are used most. Tools include Read (file reading), Edit (file editing), Bash (shell commands), Write (file creation), Grep (search), and others.</p>
+        </div>
+        <div class="chart-card">
+            <h3>Error Rate by Tool</h3>
+            <canvas id="errorRates" aria-label="Bar chart showing failure percentage per tool"></canvas>
+            <p class="chart-desc">A failure means a tool call returned an error, triggering a retry or debug cycle. Higher rates = more time spent fixing. Only tools with failures shown.</p>
+        </div>
+        <div class="chart-card wide">
+            <h3>Events per Day</h3>
+            <canvas id="dailyEvents" aria-label="Bar chart showing event count per day"></canvas>
+            <p class="chart-desc">Total activity per day. More events generally means more active coding sessions. Useful for spotting trends over time.</p>
+        </div>
+        <div class="chart-card">
+            <h3>Prompts per Hour</h3>
+            <canvas id="promptsPerHour" aria-label="Bar chart showing prompt count per hour of day"></canvas>
+            <p class="chart-desc">Distribution of your prompts across the day. Shows when you are most active. Gaps indicate hours with no Claude Code usage.</p>
+        </div>
+        <div class="chart-card">
+            <h3>Session Sizes</h3>
+            <canvas id="sessions" aria-label="Bar chart showing event count per session"></canvas>
+            <p class="chart-desc">Each bar is one Claude Code session, sorted by event count. Large sessions often involve complex multi-step tasks or long debugging chains.</p>
+        </div>
+    </div>
+
+    <p class="footer">Pulse &mdash; The heartbeat of your Claude Code projects</p>
+</div>
+
+<script>
+const DATA = {"toolMix": {"labels": ["Bash", "Read", "Edit", "Write", "Grep", "Other"], "data": [1842, 1205, 987, 443, 312, 611]}, "dailyEvents": {"labels": ["2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14"], "data": [1240, 1856, 2103, 1678, 2523]}, "sessions": {"labels": ["2026-03-14 09:12", "2026-03-13 14:30", "2026-03-14 15:45", "2026-03-12 10:00", "2026-03-11 20:15", "2026-03-13 09:00", "2026-03-10 11:30", "2026-03-12 16:20"], "data": [1534, 1285, 1107, 952, 841, 723, 612, 346]}, "errorRates": {"labels": ["Agent", "Write"], "data": [24.3, 12.1], "totals": [115, 443]}, "promptsPerHour": {"labels": ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "20:00", "21:00", "22:00"], "data": [18, 45, 52, 28, 35, 41, 38, 22, 15, 31, 48, 19]}};
+
+Chart.defaults.color = '#848d97';
+Chart.defaults.borderColor = '#30363d';
+Chart.defaults.font.family = "'Segoe UI', sans-serif";
+if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    Chart.defaults.animation = false;
+}
+
+const COLORS = ['#58a6ff', '#3fb950', '#e3b341', '#f85149', '#a78bfa', '#79c0ff'];
+
+// Tool Mix (Donut)
+new Chart(document.getElementById('toolMix'), {
+    type: 'doughnut',
+    data: {
+        labels: DATA.toolMix.labels,
+        datasets: [{ data: DATA.toolMix.data, backgroundColor: COLORS, borderWidth: 0 }]
+    },
+    options: {
+        plugins: {
+            legend: { position: 'right', labels: { boxWidth: 12, padding: 8, font: { size: 11 } } }
+        }
+    }
+});
+
+// Error Rates (Bar)
+new Chart(document.getElementById('errorRates'), {
+    type: 'bar',
+    data: {
+        labels: DATA.errorRates.labels,
+        datasets: [{
+            label: 'Fail %',
+            data: DATA.errorRates.data,
+            backgroundColor: DATA.errorRates.data.map(v => v > 20 ? '#f85149' : v > 5 ? '#d29922' : '#3fb950'),
+            borderRadius: 4
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { max: Math.max(...DATA.errorRates.data, 30), ticks: { callback: v => v + '%' } } }
+    }
+});
+
+// Daily Events (Bar)
+new Chart(document.getElementById('dailyEvents'), {
+    type: 'bar',
+    data: {
+        labels: DATA.dailyEvents.labels,
+        datasets: [{
+            label: 'Events',
+            data: DATA.dailyEvents.data,
+            backgroundColor: '#58a6ff',
+            borderRadius: 4
+        }]
+    },
+    options: {
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+    }
+});
+
+// Prompts per Hour (Bar — honest about gaps)
+new Chart(document.getElementById('promptsPerHour'), {
+    type: 'bar',
+    data: {
+        labels: DATA.promptsPerHour.labels,
+        datasets: [{
+            label: 'Prompts',
+            data: DATA.promptsPerHour.data,
+            backgroundColor: '#58a6ff',
+            borderRadius: 4
+        }]
+    },
+    options: {
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+    }
+});
+
+// Session Sizes (Horizontal Bar)
+new Chart(document.getElementById('sessions'), {
+    type: 'bar',
+    data: {
+        labels: DATA.sessions.labels,
+        datasets: [{
+            label: 'Events',
+            data: DATA.sessions.data,
+            backgroundColor: '#3fb950',
+            borderRadius: 4
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } }
+    }
+});
+</script>
+</body>
+</html>
