@@ -64,6 +64,17 @@ def collect(
             started_at=event["timestamp"],
         )
 
+    # On Stop/SessionEnd, run tracker to auto-detect completed tasks
+    if event_type in ("Stop", "SessionEnd"):
+        try:
+            from pulse.tracker import TaskTracker
+            tracker = TaskTracker(db)
+            signals = tracker.detect_signals(event["session_id"])
+            if signals:
+                tracker.apply_signals(signals, min_confidence=0.7)
+        except Exception:
+            pass  # Tracker must never block Claude Code
+
 
 def _summarize_input(tool_input: dict) -> str | None:
     """Create a short summary of tool input without leaking secrets.

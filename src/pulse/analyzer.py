@@ -335,10 +335,23 @@ class Analyzer:
         # Distinct sessions
         session_ids = list({e["session_id"] for e in events})
 
-        # Total time
-        first = datetime.fromisoformat(events[0]["timestamp"])
-        last = datetime.fromisoformat(events[-1]["timestamp"])
-        total_min = (last - first).total_seconds() / 60
+        # Total time — sum of active blocks per session
+        # A block is a sequence of events with <10 min gaps between them
+        total_min = 0.0
+        for sid in session_ids:
+            s_events = [e for e in events if e["session_id"] == sid]
+            if len(s_events) < 2:
+                continue
+            block_start = datetime.fromisoformat(s_events[0]["timestamp"])
+            prev = block_start
+            for e in s_events[1:]:
+                curr = datetime.fromisoformat(e["timestamp"])
+                gap = (curr - prev).total_seconds()
+                if gap > 600:  # >10 min gap = new block
+                    total_min += (prev - block_start).total_seconds() / 60
+                    block_start = curr
+                prev = curr
+            total_min += (prev - block_start).total_seconds() / 60
 
         prompts = len([e for e in events if e["event_type"] == "UserPromptSubmit"])
         tool_calls = len([e for e in events if e["event_type"] == "PreToolUse"])
@@ -354,20 +367,27 @@ class Analyzer:
         tool_events = [e for e in events if e["event_type"] in ("PreToolUse", "PostToolUse")]
         debug_cycles = len(self._detect_debug_cycles(tool_events))
 
-        # Think time
+        # Think time — only within same session, cap at 30 min per gap
         think_seconds = 0.0
-        for i, e in enumerate(events):
-            if e["event_type"] != "Stop":
+        active_seconds = 0.0
+        for sid in session_ids:
+            s_events = [e for e in events if e["session_id"] == sid]
+            if len(s_events) < 2:
                 continue
-            for ne in events[i + 1:]:
-                if ne["event_type"] == "UserPromptSubmit":
-                    wait = (datetime.fromisoformat(ne["timestamp"]) -
-                            datetime.fromisoformat(e["timestamp"])).total_seconds()
-                    if wait > 0:
-                        think_seconds += wait
-                    break
-        total_seconds = (last - first).total_seconds()
-        think_pct = round(think_seconds / total_seconds * 100, 1) if total_seconds > 0 else 0.0
+            s_first = datetime.fromisoformat(s_events[0]["timestamp"])
+            s_last = datetime.fromisoformat(s_events[-1]["timestamp"])
+            active_seconds += (s_last - s_first).total_seconds()
+            for i, e in enumerate(s_events):
+                if e["event_type"] != "Stop":
+                    continue
+                for ne in s_events[i + 1:]:
+                    if ne["event_type"] == "UserPromptSubmit":
+                        wait = (datetime.fromisoformat(ne["timestamp"]) -
+                                datetime.fromisoformat(e["timestamp"])).total_seconds()
+                        if 0 < wait < 1800:  # Cap at 30 min
+                            think_seconds += wait
+                        break
+        think_pct = round(think_seconds / active_seconds * 100, 1) if active_seconds > 0 else 0.0
 
         # Tasks completed today
         tasks_done = self.db.execute(
