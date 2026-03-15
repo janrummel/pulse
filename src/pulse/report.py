@@ -64,7 +64,7 @@ def generate_report(db_path: str, output_path: str | None = None, open_browser: 
         FROM events
         WHERE event_type = 'PostToolUse' AND tool_name IS NOT NULL
         GROUP BY tool_name
-        HAVING total > 10
+        HAVING total > 10 AND fail_pct > 0
         ORDER BY fail_pct DESC
     """).fetchall()
 
@@ -94,7 +94,7 @@ def generate_report(db_path: str, output_path: str | None = None, open_browser: 
     # Prepare JSON data for Chart.js
     chart_data = {
         "toolMix": {
-            "labels": [r["tool_name"] for r in tool_mix],
+            "labels": [r["tool_name"].split("__")[-1] if "__" in r["tool_name"] else r["tool_name"] for r in tool_mix],
             "data": [r["count"] for r in tool_mix],
         },
         "dailyEvents": {
@@ -102,12 +102,11 @@ def generate_report(db_path: str, output_path: str | None = None, open_browser: 
             "data": [r["count"] for r in daily_events],
         },
         "sessions": {
-            "labels": [r["session_id"][:8] + "..." for r in sessions],
+            "labels": [r["start_time"][:16].replace("T", " ") for r in sessions],
             "data": [r["events"] for r in sessions],
-            "times": [r["start_time"][:16] for r in sessions],
         },
         "errorRates": {
-            "labels": [r["tool_name"] for r in error_rates],
+            "labels": [r["tool_name"].split("__")[-1] if "__" in r["tool_name"] else r["tool_name"] for r in error_rates],
             "data": [r["fail_pct"] for r in error_rates],
             "totals": [r["total"] for r in error_rates],
         },
