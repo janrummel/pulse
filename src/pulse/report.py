@@ -119,7 +119,7 @@ def generate_report(db_path: str, output_path: str | None = None, open_browser: 
     # Build insights
     insights = []
     if top_error_tool and top_error_pct > 5:
-        insights.append(f"{top_error_tool} has a {top_error_pct}% failure rate — your biggest cost driver.")
+        insights.append(f"{top_error_tool} has a {top_error_pct}% failure rate — failed calls need retries, costing time and tokens.")
     insights.append(f"{top_tool} dominates your tool mix at {top_tool_pct:.0f}%.")
     if peak_hour_row:
         insights.append(f"Peak activity: {peak_hour} ({peak_hour_count} prompts).")
@@ -221,8 +221,20 @@ def _build_html(
         .subtitle {{
             color: var(--text-dim);
             font-size: 14px;
-            margin-bottom: 32px;
+            margin-bottom: 12px;
         }}
+        .intro {{
+            color: var(--text-dim);
+            font-size: 14px;
+            margin-bottom: 32px;
+            max-width: 700px;
+            line-height: 1.6;
+        }}
+        .intro a {{
+            color: var(--accent);
+            text-decoration: none;
+        }}
+        .intro a:hover {{ text-decoration: underline; }}
         .kpi-row {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -248,6 +260,12 @@ def _build_html(
             text-transform: uppercase;
             letter-spacing: 1px;
             margin-top: 4px;
+        }}
+        .kpi-hint {{
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 6px;
+            opacity: 0.7;
         }}
         .charts {{
             display: grid;
@@ -317,19 +335,23 @@ def _build_html(
 <div class="container">
     <h1>Pulse Report</h1>
     <p class="subtitle">Generated {datetime.now().strftime("%Y-%m-%d %H:%M")} &middot; Data from {first_day} to {last_day}</p>
+    <p class="intro">Pulse tracks what happens inside your <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> sessions &mdash; every tool call, every prompt, every error. This report summarizes your activity so you can see patterns, spot bottlenecks, and understand how you work with AI.</p>
 
     <div class="kpi-row">
         <div class="kpi">
             <div class="kpi-value">{total_events:,}</div>
             <div class="kpi-label">Total Events</div>
+            <div class="kpi-hint">Tool calls, prompts, session events</div>
         </div>
         <div class="kpi">
             <div class="kpi-value">{total_sessions}</div>
             <div class="kpi-label">Sessions</div>
+            <div class="kpi-hint">One Claude Code conversation = one session</div>
         </div>
         <div class="kpi">
             <div class="kpi-value">{total_prompts}</div>
             <div class="kpi-label">Prompts</div>
+            <div class="kpi-hint">Messages you sent to Claude</div>
         </div>
     </div>
 {insights_html}
@@ -337,27 +359,27 @@ def _build_html(
         <div class="chart-card">
             <h3>Tool Mix</h3>
             <canvas id="toolMix" aria-label="Donut chart showing distribution of tool usage"></canvas>
-            <p class="chart-desc">Top 5 tools by usage count. Remaining tools grouped as Other.</p>
+            <p class="chart-desc">Which Claude Code tools are used most. Tools include Read (file reading), Edit (file editing), Bash (shell commands), Write (file creation), Grep (search), and others.</p>
         </div>
         <div class="chart-card">
             <h3>Error Rate by Tool</h3>
             <canvas id="errorRates" aria-label="Bar chart showing failure percentage per tool"></canvas>
-            <p class="chart-desc">Only tools with failures shown. Red &gt;20%, yellow &gt;5%, green &lt;5%.</p>
+            <p class="chart-desc">A failure means a tool call returned an error, triggering a retry or debug cycle. Higher rates = more time spent fixing. Only tools with failures shown.</p>
         </div>
         <div class="chart-card wide">
             <h3>Events per Day</h3>
             <canvas id="dailyEvents" aria-label="Bar chart showing event count per day"></canvas>
-            <p class="chart-desc">All hook events (tool calls, prompts, sessions) per day.</p>
+            <p class="chart-desc">Total activity per day. More events generally means more active coding sessions. Useful for spotting trends over time.</p>
         </div>
         <div class="chart-card">
             <h3>Prompts per Hour</h3>
             <canvas id="promptsPerHour" aria-label="Bar chart showing prompt count per hour of day"></canvas>
-            <p class="chart-desc">When you send prompts. Gaps mean no activity in that hour.</p>
+            <p class="chart-desc">Distribution of your prompts across the day. Shows when you are most active. Gaps indicate hours with no Claude Code usage.</p>
         </div>
         <div class="chart-card">
             <h3>Session Sizes</h3>
             <canvas id="sessions" aria-label="Bar chart showing event count per session"></canvas>
-            <p class="chart-desc">Sessions sorted by size. Larger sessions indicate longer or more complex work.</p>
+            <p class="chart-desc">Each bar is one Claude Code session, sorted by event count. Large sessions often involve complex multi-step tasks or long debugging chains.</p>
         </div>
     </div>
 
