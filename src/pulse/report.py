@@ -26,15 +26,17 @@ def generate_report(db_path: str, output_path: str | None = None, open_browser: 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
 
-    # Query 1: Tool mix (top 10)
-    tool_mix = conn.execute("""
+    # Query 1: Tool mix (top 5 + "Other")
+    tool_mix_all = conn.execute("""
         SELECT tool_name, COUNT(*) as count
         FROM events
         WHERE tool_name IS NOT NULL AND event_type = 'PreToolUse'
         GROUP BY tool_name
         ORDER BY count DESC
-        LIMIT 10
     """).fetchall()
+    tool_mix_top = tool_mix_all[:5]
+    tool_mix_other = sum(r["count"] for r in tool_mix_all[5:])
+    tool_mix_total = sum(r["count"] for r in tool_mix_all)
 
     # Query 2: Events per day
     daily_events = conn.execute("""
@@ -91,11 +93,44 @@ def generate_report(db_path: str, output_path: str | None = None, open_browser: 
 
     conn.close()
 
+    def _short_name(name: str) -> str:
+        return name.split("__")[-1] if "__" in name else name
+
+    # Tool mix: top 5 + Other
+    tool_labels = [_short_name(r["tool_name"]) for r in tool_mix_top]
+    tool_data = [r["count"] for r in tool_mix_top]
+    if tool_mix_other > 0:
+        tool_labels.append("Other")
+        tool_data.append(tool_mix_other)
+
+    # Top tool for insight
+    top_tool = _short_name(tool_mix_top[0]["tool_name"]) if tool_mix_top else "—"
+    top_tool_pct = round(100 * tool_mix_top[0]["count"] / tool_mix_total, 0) if tool_mix_top and tool_mix_total else 0
+
+    # Peak hour for insight
+    peak_hour_row = max(prompts_per_hour, key=lambda r: r["count"]) if prompts_per_hour else None
+    peak_hour = f"{peak_hour_row['hour']:02d}:00" if peak_hour_row else "—"
+    peak_hour_count = peak_hour_row["count"] if peak_hour_row else 0
+
+    # Top error tool for insight
+    top_error_tool = _short_name(error_rates[0]["tool_name"]) if error_rates else None
+    top_error_pct = error_rates[0]["fail_pct"] if error_rates else 0
+
+    # Build insights
+    insights = []
+    if top_error_tool and top_error_pct > 5:
+        insights.append(f"{top_error_tool} has a {top_error_pct}% failure rate — your biggest cost driver.")
+    insights.append(f"{top_tool} dominates your tool mix at {top_tool_pct:.0f}%.")
+    if peak_hour_row:
+        insights.append(f"Peak activity: {peak_hour} ({peak_hour_count} prompts).")
+    if sessions:
+        insights.append(f"Largest session: {sessions[0]['events']:,} events ({sessions[0]['start_time'][:10]}).")
+
     # Prepare JSON data for Chart.js
     chart_data = {
         "toolMix": {
-            "labels": [r["tool_name"].split("__")[-1] if "__" in r["tool_name"] else r["tool_name"] for r in tool_mix],
-            "data": [r["count"] for r in tool_mix],
+            "labels": tool_labels,
+            "data": tool_data,
         },
         "dailyEvents": {
             "labels": [r["day"] for r in daily_events],
@@ -106,7 +141,7 @@ def generate_report(db_path: str, output_path: str | None = None, open_browser: 
             "data": [r["events"] for r in sessions],
         },
         "errorRates": {
-            "labels": [r["tool_name"].split("__")[-1] if "__" in r["tool_name"] else r["tool_name"] for r in error_rates],
+            "labels": [_short_name(r["tool_name"]) for r in error_rates],
             "data": [r["fail_pct"] for r in error_rates],
             "totals": [r["total"] for r in error_rates],
         },
@@ -116,7 +151,7 @@ def generate_report(db_path: str, output_path: str | None = None, open_browser: 
         },
     }
 
-    html = _build_html(chart_data, total_events, total_sessions, total_prompts, first_day, last_day)
+    html = _build_html(chart_data, total_events, total_sessions, total_prompts, first_day, last_day, insights)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
@@ -134,8 +169,18 @@ def _build_html(
     total_prompts: int,
     first_day: str,
     last_day: str,
+    insights: list[str] | None = None,
 ) -> str:
     """Build the complete self-contained HTML string with Chart.js visualizations."""
+    insights_html = ""
+    if insights:
+        items = "".join(f'<li>{i}</li>' for i in insights)
+        insights_html = f"""
+    <div class="insights">
+        <h2>Key Insights</h2>
+        <ul>{items}</ul>
+    </div>"""
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -228,6 +273,38 @@ def _build_html(
             grid-column: 1 / -1;
         }}
         canvas {{ max-height: 300px; }}
+        .insights {{
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 32px;
+        }}
+        .insights h2 {{
+            font-size: 16px;
+            color: var(--text-heading);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }}
+        .insights ul {{
+            list-style: none;
+            padding: 0;
+        }}
+        .insights li {{
+            font-size: 14px;
+            color: var(--text);
+            padding: 4px 0;
+        }}
+        .insights li::before {{
+            content: "→ ";
+            color: var(--accent);
+        }}
+        .chart-desc {{
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 8px;
+        }}
         .footer {{
             text-align: center;
             margin-top: 40px;
@@ -255,27 +332,32 @@ def _build_html(
             <div class="kpi-label">Prompts</div>
         </div>
     </div>
-
+{insights_html}
     <div class="charts">
         <div class="chart-card">
             <h3>Tool Mix</h3>
-            <canvas id="toolMix"></canvas>
+            <canvas id="toolMix" aria-label="Donut chart showing distribution of tool usage"></canvas>
+            <p class="chart-desc">Top 5 tools by usage count. Remaining tools grouped as Other.</p>
         </div>
         <div class="chart-card">
             <h3>Error Rate by Tool</h3>
-            <canvas id="errorRates"></canvas>
+            <canvas id="errorRates" aria-label="Bar chart showing failure percentage per tool"></canvas>
+            <p class="chart-desc">Only tools with failures shown. Red &gt;20%, yellow &gt;5%, green &lt;5%.</p>
         </div>
         <div class="chart-card wide">
             <h3>Events per Day</h3>
-            <canvas id="dailyEvents"></canvas>
+            <canvas id="dailyEvents" aria-label="Bar chart showing event count per day"></canvas>
+            <p class="chart-desc">All hook events (tool calls, prompts, sessions) per day.</p>
         </div>
         <div class="chart-card">
             <h3>Prompts per Hour</h3>
-            <canvas id="promptsPerHour"></canvas>
+            <canvas id="promptsPerHour" aria-label="Bar chart showing prompt count per hour of day"></canvas>
+            <p class="chart-desc">When you send prompts. Gaps mean no activity in that hour.</p>
         </div>
         <div class="chart-card">
             <h3>Session Sizes</h3>
-            <canvas id="sessions"></canvas>
+            <canvas id="sessions" aria-label="Bar chart showing event count per session"></canvas>
+            <p class="chart-desc">Sessions sorted by size. Larger sessions indicate longer or more complex work.</p>
         </div>
     </div>
 
@@ -288,8 +370,11 @@ const DATA = {json.dumps(data)};
 Chart.defaults.color = '#848d97';
 Chart.defaults.borderColor = '#30363d';
 Chart.defaults.font.family = "'Segoe UI', sans-serif";
+if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {{
+    Chart.defaults.animation = false;
+}}
 
-const COLORS = ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#a78bfa', '#79c0ff', '#56d4dd', '#db61a2', '#f0883e', '#7ee787'];
+const COLORS = ['#58a6ff', '#3fb950', '#e3b341', '#f85149', '#a78bfa', '#79c0ff'];
 
 // Tool Mix (Donut)
 new Chart(document.getElementById('toolMix'), {{
@@ -342,19 +427,16 @@ new Chart(document.getElementById('dailyEvents'), {{
     }}
 }});
 
-// Prompts per Hour (Line)
+// Prompts per Hour (Bar — honest about gaps)
 new Chart(document.getElementById('promptsPerHour'), {{
-    type: 'line',
+    type: 'bar',
     data: {{
         labels: DATA.promptsPerHour.labels,
         datasets: [{{
             label: 'Prompts',
             data: DATA.promptsPerHour.data,
-            borderColor: '#58a6ff',
-            backgroundColor: 'rgba(88, 166, 255, 0.1)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: 3
+            backgroundColor: '#58a6ff',
+            borderRadius: 4
         }}]
     }},
     options: {{
