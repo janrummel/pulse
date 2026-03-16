@@ -21,6 +21,8 @@ def mock_db_path(tmp_path, monkeypatch):
     db_path = str(tmp_path / "test.db")
     monkeypatch.setattr("pulse.cli._DEFAULT_DB_PATH", db_path)
     monkeypatch.setattr("pulse.collector._DEFAULT_DB_PATH", db_path)
+    # Prevent lazy sync from pulling real .md project files into the temp DB
+    monkeypatch.setattr("pulse.sync.sync_all", lambda db, force=False, **kw: {"total": 0, "synced": 0, "created": 0, "updated": 0, "errors": 0})
     return db_path
 
 

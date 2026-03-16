@@ -29,6 +29,12 @@ from pulse.config import config as _cfg
 _DEFAULT_DB_PATH = _cfg.db_path
 
 
+def _ensure_synced(db: PulseDB) -> None:
+    """Lazy sync: re-sync .md project states if any have changed."""
+    from pulse.sync import sync_all
+    sync_all(db)
+
+
 def main(argv: list[str] | None = None) -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(prog="pulse", description="Pulse — Claude Code session metrics")
@@ -204,6 +210,7 @@ def _cmd_portfolio() -> None:
     from pulse import theme
 
     db = PulseDB(_DEFAULT_DB_PATH)
+    _ensure_synced(db)
     console = Console()
 
     projects = db.execute("SELECT * FROM projects ORDER BY category, status DESC, name").fetchall()
@@ -254,6 +261,7 @@ def _cmd_status() -> None:
     from pulse import theme
 
     db = PulseDB(_DEFAULT_DB_PATH)
+    _ensure_synced(db)
     projects = db.execute("SELECT * FROM projects ORDER BY status, name").fetchall()
 
     if not projects:
@@ -277,6 +285,7 @@ def _cmd_project(args: argparse.Namespace) -> None:
     from pulse import theme
 
     db = PulseDB(_DEFAULT_DB_PATH)
+    _ensure_synced(db)
     project = db.get_project(args.name)
 
     if not project:
@@ -554,6 +563,8 @@ def _cmd_dashboard(args: argparse.Namespace) -> None:
 
 def _cmd_metrics(args: argparse.Namespace) -> None:
     """Show metrics snapshot."""
+    db = PulseDB(_DEFAULT_DB_PATH)
+    _ensure_synced(db)
     from pulse.dashboard import print_snapshot
     print_snapshot(_DEFAULT_DB_PATH, project_name=args.project)
 
@@ -567,6 +578,7 @@ def _cmd_priority() -> None:
     from pulse.planner import Planner
 
     db = PulseDB(_DEFAULT_DB_PATH)
+    _ensure_synced(db)
     analyzer = Analyzer(db)
     planner = Planner(db, analyzer)
 
