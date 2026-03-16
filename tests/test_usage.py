@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from pulse.db import PulseDB
-from pulse.usage import import_stats_cache, needs_import
+from pulse.usage import get_daily_usage, get_peak_hour, get_usage_summary, import_stats_cache, needs_import
 
 
 STATS_CACHE_FIXTURE = {
@@ -113,3 +113,35 @@ def test_import_malformed_json(db, tmp_path):
     bad.write_text("{truncated")
     count = import_stats_cache(db, str(bad))
     assert count == 0
+
+
+def test_get_daily_usage(db, stats_file):
+    """Returns last N days ordered by date descending."""
+    import_stats_cache(db, str(stats_file))
+    days = get_daily_usage(db, days=7)
+    assert len(days) == 2
+    assert days[0]["date"] == "2026-03-16"  # Most recent first
+    assert days[1]["date"] == "2026-03-15"
+
+
+def test_get_usage_summary(db, stats_file):
+    """Calculates totals and averages."""
+    import_stats_cache(db, str(stats_file))
+    summary = get_usage_summary(db, days=7)
+    assert summary["total_messages"] == 89 + 142
+    assert summary["total_sessions"] == 5 + 8
+    assert summary["avg_messages_per_session"] == (89 + 142) / (5 + 8)
+    assert "claude-opus-4-6" in summary["model_mix"]
+
+
+def test_get_peak_hour(stats_file):
+    """Finds hour with most messages from stats-cache.json."""
+    hour, count = get_peak_hour(str(stats_file))
+    assert hour == "14"
+    assert count == 234
+
+
+def test_get_peak_hour_no_file(tmp_path):
+    """Missing file → None."""
+    result = get_peak_hour(str(tmp_path / "nonexistent.json"))
+    assert result is None

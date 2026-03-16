@@ -75,3 +75,73 @@ def import_stats_cache(db: PulseDB, stats_path: str | None = None) -> int:
 
     db.execute("COMMIT")
     return count
+
+
+def get_daily_usage(db: PulseDB, days: int = 7) -> list[dict]:
+    """Get the last N days of usage data, most recent first."""
+    rows = db.execute(
+        "SELECT * FROM daily_usage ORDER BY date DESC LIMIT ?",
+        (days,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_usage_summary(db: PulseDB, days: int = 7) -> dict:
+    """Calculate totals and averages over the last N days."""
+    usage = get_daily_usage(db, days)
+    if not usage:
+        return {
+            "total_messages": 0,
+            "total_sessions": 0,
+            "total_tool_calls": 0,
+            "avg_messages_per_session": 0,
+            "model_mix": {},
+            "days_count": 0,
+        }
+
+    total_messages = sum(d["message_count"] for d in usage)
+    total_sessions = sum(d["session_count"] for d in usage)
+    total_tool_calls = sum(d["tool_call_count"] for d in usage)
+
+    # Aggregate model tokens
+    model_totals: dict[str, int] = {}
+    for d in usage:
+        if d["tokens_by_model"]:
+            tokens = json.loads(d["tokens_by_model"])
+            for model, count in tokens.items():
+                model_totals[model] = model_totals.get(model, 0) + count
+
+    # Calculate percentages
+    grand_total = sum(model_totals.values())
+    model_mix = {}
+    if grand_total > 0:
+        for model, count in model_totals.items():
+            model_mix[model] = round(count / grand_total * 100, 1)
+
+    return {
+        "total_messages": total_messages,
+        "total_sessions": total_sessions,
+        "total_tool_calls": total_tool_calls,
+        "avg_messages_per_session": total_messages / total_sessions if total_sessions else 0,
+        "model_mix": model_mix,
+        "days_count": len(usage),
+    }
+
+
+def get_peak_hour(stats_path: str | None = None) -> tuple[str, int] | None:
+    """Read hourCounts directly from stats-cache.json. Returns (hour, count) or None."""
+    path = Path(stats_path) if stats_path else Path(_STATS_CACHE_PATH)
+    if not path.exists():
+        return None
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    hour_counts = data.get("hourCounts", {})
+    if not hour_counts:
+        return None
+
+    peak = max(hour_counts.items(), key=lambda x: x[1])
+    return peak
