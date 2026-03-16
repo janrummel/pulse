@@ -97,16 +97,11 @@ CREATE TABLE IF NOT EXISTS daily_usage (
 
 Kein Erweitern der bestehenden `sessions`-Tabelle — taeglich aggregierte Usage ist ein eigenes Concern.
 
-### Neue Metadaten-Tabelle: usage_meta
+Letzter Import wird ueber `MAX(imported_at)` aus `daily_usage` ermittelt — keine separate Meta-Tabelle noetig.
 
-```sql
-CREATE TABLE IF NOT EXISTS usage_meta (
-    key TEXT PRIMARY KEY,
-    value TEXT
-);
-```
+### Schema-Integration
 
-Speichert: `stats_cache_last_imported` (ISO-Timestamp des letzten Imports).
+Beide CREATE TABLE Statements werden in `_SCHEMA` in `db.py` eingefuegt (wie events, sessions, projects, tasks). Kein separates Schema-Management in `usage.py`.
 
 ## Architektur
 
@@ -115,11 +110,11 @@ Neues Modul `src/pulse/usage.py`:
 ```
 usage.py
 ├── import_stats_cache(db)        # stats-cache.json → daily_usage
-├── needs_import(db)              # mtime-Check (File vs last_imported)
+├── needs_import(db)              # mtime-Check (File mtime vs MAX(imported_at))
 ├── get_daily_usage(db, days=7)   # Letzte N Tage aus DB
 ├── get_usage_summary(db)         # Gesamtuebersicht (Total, Durchschnitte)
 ├── parse_session_usage(path)     # Transcript JSONL → Token-Summen (on-demand)
-└── get_peak_hour(db)             # Stunde mit meisten Messages
+└── get_peak_hour(stats_path)     # Liest hourCounts direkt aus stats-cache.json
 ```
 
 ### import_stats_cache(db)
@@ -132,7 +127,9 @@ def import_stats_cache(db: PulseDB, stats_path: str | None = None) -> int:
     """
 ```
 
-Liest `dailyActivity` und `dailyModelTokens` Arrays. Fuer jeden Tag: Upsert in `daily_usage`. Matched ueber `date`.
+Liest `dailyActivity` und `dailyModelTokens` Arrays. Fuer jeden Tag: Upsert in `daily_usage` via `INSERT ... ON CONFLICT(date) DO UPDATE SET ...` (alle Felder ersetzen). Matched ueber `date`.
+
+`modelUsage` (globales Aggregat mit input/output/cache Breakdown) wird NICHT importiert — die taeglichen `tokens_by_model` reichen fuer Model-Mix Prozente. `hourCounts` (globales Aggregat) wird nicht in die DB importiert sondern direkt aus der JSON-Datei gelesen (siehe `get_peak_hour`).
 
 ### parse_session_usage(transcript_path)
 
@@ -140,7 +137,7 @@ Liest `dailyActivity` und `dailyModelTokens` Arrays. Fuer jeden Tag: Upsert in `
 @dataclass
 class SessionUsage:
     session_id: str
-    model: str
+    primary_model: str        # Meistgenutztes Model in der Session
     duration_minutes: float
     total_input_tokens: int
     total_output_tokens: int
@@ -193,7 +190,7 @@ pulse usage [--days N] [--session <id>]
 
 ### pulse recap (Erweiterung)
 
-Bestehender Recap-Output wird um eine Zeile erweitert:
+Bestehender Recap-Output wird um eine Zeile erweitert. Integration in `_cmd_recap()` in `cli.py` (NICHT in `analyzer.py`) — nach den bestehenden Metriken wird Usage-Info aus `daily_usage` gelesen und angezeigt:
 
 ```
   Token-Verbrauch  125k tokens (Opus 78%, Sonnet 22%)
@@ -219,16 +216,22 @@ Aufrufe: `_cmd_usage`, `_cmd_recap`.
 
 ### stats-cache.json Pfad
 
-In `config.py` als Default:
+In `config.py` als Default in `_DEFAULTS` dict und als `@property` Accessor:
 
 ```python
+# In _DEFAULTS:
 "stats_cache_path": str(Path.home() / ".claude" / "stats-cache.json"),
+
+# Als Property:
+@property
+def stats_cache_path(self) -> str:
+    return str(Path(self._data["stats_cache_path"]).expanduser())
 ```
 
 ## Fehlerbehandlung
 
-- stats-cache.json nicht vorhanden → Warning, leere Usage-Anzeige
-- stats-cache.json ungueltiges Format → Warning auf stderr, skip
+- stats-cache.json nicht vorhanden → `needs_import` gibt False zurueck, leere Usage-Anzeige
+- stats-cache.json ungueltiges/truncated JSON → Warning auf stderr, skip (json.JSONDecodeError fangen)
 - Transcript-Datei nicht gefunden → Fehlermeldung mit Pfad
 - Leere daily_usage → "Noch keine Usage-Daten importiert."
 
@@ -247,6 +250,7 @@ In `config.py` als Default:
 9. `test_parse_session_usage_empty` — Leere Datei → Defaults
 10. `test_get_peak_hour` — Findet Stunde mit meisten Messages
 11. `test_tokens_by_model_json` — JSON-String wird korrekt gelesen/geschrieben
+12. `test_import_malformed_json` — Truncated/ungueltiges JSON → kein Crash, Warning
 
 ### Fixtures
 
