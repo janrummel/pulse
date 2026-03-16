@@ -348,3 +348,20 @@ def test_sync_all_performance(tmp_path):
     elapsed = time.monotonic() - start
 
     assert elapsed < 0.05, f"Parsing 30 files took {elapsed:.3f}s (limit: 0.05s)"
+
+
+from pulse.cli import main
+
+
+def test_cli_sync_command(tmp_path, db, capsys, monkeypatch):
+    """pulse sync runs without error."""
+    monkeypatch.setattr("pulse.cli._DEFAULT_DB_PATH", str(tmp_path / "test.db"))
+    orch_dir = tmp_path / "projects"
+    orch_dir.mkdir()
+    (orch_dir / "test-proj.md").write_text("# Test\n\n## Status\n- **Phase:** Aktiv\n")
+
+    monkeypatch.setattr("pulse.sync._ORCHESTRATOR_DIR", orch_dir)
+
+    main(["sync"])
+    captured = capsys.readouterr()
+    assert "Synced" in captured.out or "synced" in captured.out.lower()

@@ -112,6 +112,10 @@ def main(argv: list[str] | None = None) -> None:
     p_report.add_argument("--output", help="Output path (default: ~/.pulse/report.html)")
     p_report.add_argument("--no-open", action="store_true", help="Skip opening in browser")
 
+    # sync
+    p_sync = sub.add_parser("sync", help="Sync .md project states into DB")
+    p_sync.add_argument("--force", action="store_true", help="Re-sync all files regardless of mtime")
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -151,6 +155,8 @@ def main(argv: list[str] | None = None) -> None:
         _cmd_priority()
     elif args.command == "report":
         _cmd_report(args)
+    elif args.command == "sync":
+        _cmd_sync(args)
     else:
         parser.print_help()
 
@@ -608,3 +614,24 @@ def _cmd_report(args: argparse.Namespace) -> None:
         open_browser=not args.no_open,
     )
     print(f"  Report: {out}")
+
+
+def _cmd_sync(args: argparse.Namespace) -> None:
+    """Sync .md project state files into the database."""
+    from pulse.sync import sync_all
+
+    db = PulseDB(_DEFAULT_DB_PATH)
+    stats = sync_all(db, force=args.force)
+    total = stats["total"]
+    synced = stats["synced"]
+    created = stats["created"]
+    updated = stats["updated"]
+
+    parts = []
+    if created:
+        parts.append(f"{created} new")
+    if updated:
+        parts.append(f"{updated} updated")
+    detail = f" ({', '.join(parts)})" if parts else ""
+
+    print(f"  Synced {synced}/{total} projects{detail}")
