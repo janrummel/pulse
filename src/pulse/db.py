@@ -254,17 +254,21 @@ class PulseDB:
         path: str,
         deadline: str | None = None,
         total_tasks: int | None = None,
+        completed_tasks: int = 0,
         status: str = "active",
         category: str = "tools",
         project_type: str = "one-time",
         notes: str | None = None,
+        md_source_path: str | None = None,
+        md_last_synced: str | None = None,
     ) -> int:
         """Register a project and return its row id."""
         cursor = self._conn.execute(
-            """INSERT INTO projects (name, path, deadline, total_tasks, status,
-             category, project_type, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (name, path, deadline, total_tasks, status, category, project_type, notes),
+            """INSERT INTO projects (name, path, deadline, total_tasks, completed_tasks,
+             status, category, project_type, notes, md_source_path, md_last_synced)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (name, path, deadline, total_tasks, completed_tasks, status, category,
+             project_type, notes, md_source_path, md_last_synced),
         )
         self._conn.commit()
         return cursor.lastrowid

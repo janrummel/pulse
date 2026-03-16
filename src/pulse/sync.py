@@ -189,3 +189,124 @@ def _clean_todo_text(text: str) -> str:
 def _normalize_task_name(name: str) -> str:
     """Normalize task name for matching: lowercase, strip, remove markdown."""
     return name.lower().strip().replace("**", "").replace("*", "")
+
+
+def _now_iso() -> str:
+    """Current local time as naive ISO string."""
+    return datetime.now().isoformat()
+
+
+def scan_project_files(orchestrator_dir: str | None = None) -> list[Path]:
+    """Find all .md project files, excluding skip list."""
+    directory = Path(orchestrator_dir) if orchestrator_dir else _ORCHESTRATOR_DIR
+    if not directory.exists():
+        return []
+    return [
+        f for f in sorted(directory.glob("*.md"))
+        if f.name not in SKIP_FILES
+    ]
+
+
+def needs_sync(path: Path, db: PulseDB) -> bool:
+    """True if .md file is newer than the last sync timestamp."""
+    project_name = path.stem.replace("_", "-")
+    project = db.get_project(project_name)
+    if project is None:
+        return True
+    last_synced = project.get("md_last_synced")
+    if last_synced is None:
+        return True
+    file_mtime = datetime.fromtimestamp(path.stat().st_mtime)
+    synced_at = datetime.fromisoformat(last_synced)
+    return file_mtime > synced_at
+
+
+def sync_project(parsed: ParsedProject, db: PulseDB) -> str:
+    """Sync a parsed project state into the database. Returns 'created' or 'updated'."""
+    existing = db.get_project(parsed.name)
+
+    if existing is None:
+        db.add_project(
+            name=parsed.name,
+            path=str(Path(parsed.source_path).parent),
+            total_tasks=parsed.total_tasks,
+            completed_tasks=parsed.completed_tasks,
+            status=parsed.status,
+            notes=parsed.notes,
+            md_source_path=parsed.source_path,
+            md_last_synced=_now_iso(),
+        )
+        result = "created"
+    else:
+        db.update_project(
+            parsed.name,
+            total_tasks=parsed.total_tasks,
+            completed_tasks=parsed.completed_tasks,
+            status=parsed.status,
+            md_source_path=parsed.source_path,
+            md_last_synced=_now_iso(),
+        )
+        result = "updated"
+
+    project = db.get_project(parsed.name)
+    if project:
+        _sync_tasks(parsed, project["id"], db)
+
+    return result
+
+
+def _sync_tasks(parsed: ParsedProject, project_id: int, db: PulseDB) -> None:
+    """Sync open and done todos as tasks."""
+    existing_tasks = db.get_tasks(project_id)
+    existing_map = {_normalize_task_name(t["name"]): t for t in existing_tasks}
+
+    for todo in parsed.open_todos:
+        key = _normalize_task_name(todo)
+        if key not in existing_map:
+            db.add_task(project_id=project_id, name=todo)
+
+    for todo in parsed.done_todos:
+        key = _normalize_task_name(todo)
+        if key in existing_map:
+            task = existing_map[key]
+            if task["status"] != "done":
+                db.update_task(task["id"], status="done", completed_at=_now_iso())
+        else:
+            task_id = db.add_task(project_id=project_id, name=todo)
+            db.update_task(task_id, status="done", completed_at=_now_iso())
+
+
+def sync_all(db: PulseDB, force: bool = False, orchestrator_dir: str | None = None) -> dict:
+    """Sync all .md project files into the database.
+
+    Returns: {"total": N, "synced": N, "created": N, "updated": N, "errors": N}
+    """
+    files = scan_project_files(orchestrator_dir)
+    stats = {"total": len(files), "synced": 0, "created": 0, "updated": 0, "errors": 0}
+
+    for path in files:
+        if not force and not needs_sync(path, db):
+            continue
+        try:
+            parsed = parse_project_state(path)
+            result = sync_project(parsed, db)
+            stats["synced"] += 1
+            stats[result] += 1
+        except Exception as e:
+            print(f"Warning: Failed to sync {path.name}: {e}", file=sys.stderr)
+            stats["errors"] += 1
+
+    return stats
+
+
+def get_next_step(db: PulseDB, project_name: str) -> str:
+    """Get the first open todo for a project from the database."""
+    project = db.get_project(project_name)
+    if not project:
+        return "Kein naechster Schritt definiert."
+
+    tasks = db.get_tasks(project["id"])
+    pending = [t for t in tasks if t["status"] == "pending"]
+    if pending:
+        return pending[0]["name"]
+    return "Kein naechster Schritt definiert."

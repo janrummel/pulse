@@ -1,10 +1,21 @@
 """Tests for pulse.sync — .md project state parser and sync logic."""
 
+import time
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
-from pulse.sync import ParsedProject, parse_project_state
+from pulse.db import PulseDB
+from pulse.sync import (
+    ParsedProject,
+    get_next_step,
+    needs_sync,
+    parse_project_state,
+    scan_project_files,
+    sync_all,
+    sync_project,
+)
 
 
 # -- Fixtures: realistic .md content from real project files --
@@ -198,3 +209,142 @@ def test_parse_underscore_filename(tmp_path):
     p.write_text("# My Project\n")
     result = parse_project_state(p)
     assert result.name == "my-project"
+
+
+# --- Sync logic tests ---
+
+
+@pytest.fixture
+def db(tmp_path):
+    """Create a fresh PulseDB in a temp directory."""
+    db_path = tmp_path / "test_pulse.db"
+    return PulseDB(str(db_path))
+
+
+def test_needs_sync_new_project(tmp_path, db):
+    """New .md file not in DB → needs sync."""
+    p = tmp_path / "new-project.md"
+    p.write_text("# New Project\n")
+    assert needs_sync(p, db) is True
+
+
+def test_needs_sync_unchanged(tmp_path, db):
+    """File mtime older than last_synced → no sync needed."""
+    p = tmp_path / "synced.md"
+    p.write_text("# Synced\n")
+
+    db.add_project(name="synced", path=str(tmp_path))
+    future = datetime(2099, 1, 1).isoformat()
+    db.update_project("synced", md_source_path=str(p), md_last_synced=future)
+
+    assert needs_sync(p, db) is False
+
+
+def test_needs_sync_changed(tmp_path, db):
+    """File mtime newer than last_synced → needs sync."""
+    p = tmp_path / "changed.md"
+    p.write_text("# Changed\n")
+
+    db.add_project(name="changed", path=str(tmp_path))
+    past = datetime(2020, 1, 1).isoformat()
+    db.update_project("changed", md_source_path=str(p), md_last_synced=past)
+
+    assert needs_sync(p, db) is True
+
+
+def test_sync_creates_project(tmp_path, db):
+    """Syncing a new .md file creates a project in DB."""
+    p = tmp_path / "new-proj.md"
+    p.write_text(PULSE_MD)
+    parsed = parse_project_state(p)
+
+    sync_project(parsed, db)
+
+    project = db.get_project("new-proj")
+    assert project is not None
+    assert project["status"] == "active"
+    assert project["total_tasks"] == 6
+    assert project["completed_tasks"] == 3
+    assert project["md_source_path"] is not None
+
+
+def test_sync_updates_project(tmp_path, db):
+    """Syncing an existing project updates its fields."""
+    db.add_project(name="pulse", path="/Users/jan/Projects/pulse")
+
+    p = tmp_path / "pulse.md"
+    p.write_text(PULSE_MD)
+    parsed = parse_project_state(p)
+
+    sync_project(parsed, db)
+
+    project = db.get_project("pulse")
+    assert project["total_tasks"] == 6
+    assert project["completed_tasks"] == 3
+    assert project["status"] == "active"
+    assert project["md_last_synced"] is not None
+
+
+def test_sync_preserves_path(tmp_path, db):
+    """Syncing does NOT overwrite the existing project path."""
+    original_path = "/Users/jan/Projects/pulse"
+    db.add_project(name="pulse", path=original_path)
+
+    p = tmp_path / "pulse.md"
+    p.write_text(PULSE_MD)
+    parsed = parse_project_state(p)
+
+    sync_project(parsed, db)
+
+    project = db.get_project("pulse")
+    assert project["path"] == original_path
+
+
+def test_sync_tasks(tmp_path, db):
+    """Todos from .md are synced as tasks."""
+    p = tmp_path / "task-project.md"
+    p.write_text(PULSE_MD)
+    parsed = parse_project_state(p)
+
+    sync_project(parsed, db)
+
+    project = db.get_project("task-project")
+    tasks = db.get_tasks(project["id"])
+    pending = [t for t in tasks if t["status"] == "pending"]
+    done = [t for t in tasks if t["status"] == "done"]
+    assert len(pending) == 3
+    assert len(done) == 3
+
+
+def test_skip_template(tmp_path):
+    """_template.md is skipped when scanning."""
+    (tmp_path / "_template.md").write_text("# Template\n")
+    (tmp_path / "real-project.md").write_text("# Real\n")
+    files = scan_project_files(str(tmp_path))
+    names = [f.name for f in files]
+    assert "_template.md" not in names
+    assert "real-project.md" in names
+
+
+def test_get_next_step(tmp_path, db):
+    """get_next_step returns first open todo after sync."""
+    p = tmp_path / "pulse.md"
+    p.write_text(PULSE_MD)
+    parsed = parse_project_state(p)
+    sync_project(parsed, db)
+
+    step = get_next_step(db, "pulse")
+    assert "md-Sync" in step
+
+
+def test_sync_all_performance(tmp_path):
+    """Parsing 30 files completes under 50ms."""
+    for i in range(30):
+        (tmp_path / f"project-{i}.md").write_text(PULSE_MD)
+
+    start = time.monotonic()
+    for p in tmp_path.glob("*.md"):
+        parse_project_state(p)
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 0.05, f"Parsing 30 files took {elapsed:.3f}s (limit: 0.05s)"
