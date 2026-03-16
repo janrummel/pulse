@@ -145,3 +145,93 @@ def get_peak_hour(stats_path: str | None = None) -> tuple[str, int] | None:
 
     peak = max(hour_counts.items(), key=lambda x: x[1])
     return peak
+
+
+@dataclass
+class SessionUsage:
+    """Token usage stats for a single session, parsed from transcript JSONL."""
+
+    session_id: str = ""
+    primary_model: str = ""
+    duration_minutes: float = 0.0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_cache_read: int = 0
+    total_cache_creation: int = 0
+    message_count: int = 0
+    prompts_per_minute: float = 0.0
+
+
+def parse_session_usage(transcript_path: str) -> SessionUsage:
+    """Parse a transcript JSONL file for token usage stats."""
+    path = Path(transcript_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Transcript not found: {transcript_path}")
+
+    session_id = ""
+    model_counts: dict[str, int] = {}
+    total_input = 0
+    total_output = 0
+    total_cache_read = 0
+    total_cache_creation = 0
+    message_count = 0
+    timestamps: list[str] = []
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        if not session_id and entry.get("sessionId"):
+            session_id = entry["sessionId"]
+
+        if entry.get("timestamp"):
+            timestamps.append(entry["timestamp"])
+
+        if entry.get("type") != "assistant":
+            continue
+
+        msg = entry.get("message", {})
+        usage = msg.get("usage", {})
+        if not usage:
+            continue
+
+        message_count += 1
+        total_input += usage.get("input_tokens", 0)
+        total_output += usage.get("output_tokens", 0)
+        total_cache_read += usage.get("cache_read_input_tokens", 0)
+        total_cache_creation += usage.get("cache_creation_input_tokens", 0)
+
+        model = msg.get("model", "")
+        if model:
+            model_counts[model] = model_counts.get(model, 0) + 1
+
+    # Duration from first to last timestamp
+    duration_minutes = 0.0
+    if len(timestamps) >= 2:
+        try:
+            first = datetime.fromisoformat(timestamps[0])
+            last = datetime.fromisoformat(timestamps[-1])
+            duration_minutes = (last - first).total_seconds() / 60
+        except (ValueError, TypeError):
+            pass
+
+    # Primary model = most used
+    primary_model = max(model_counts, key=model_counts.get) if model_counts else ""
+
+    prompts_per_minute = message_count / duration_minutes if duration_minutes > 0 else 0.0
+
+    return SessionUsage(
+        session_id=session_id,
+        primary_model=primary_model,
+        duration_minutes=round(duration_minutes, 1),
+        total_input_tokens=total_input,
+        total_output_tokens=total_output,
+        total_cache_read=total_cache_read,
+        total_cache_creation=total_cache_creation,
+        message_count=message_count,
+        prompts_per_minute=round(prompts_per_minute, 1),
+    )

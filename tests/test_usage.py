@@ -145,3 +145,72 @@ def test_get_peak_hour_no_file(tmp_path):
     """Missing file → None."""
     result = get_peak_hour(str(tmp_path / "nonexistent.json"))
     assert result is None
+
+
+from pulse.usage import parse_session_usage, SessionUsage
+
+
+TRANSCRIPT_LINES = [
+    json.dumps({
+        "uuid": "a1", "type": "user", "timestamp": "2026-03-16T14:00:00",
+        "sessionId": "sess-123",
+        "message": {"role": "user", "content": "Hello"}
+    }),
+    json.dumps({
+        "uuid": "a2", "type": "assistant", "timestamp": "2026-03-16T14:00:05",
+        "sessionId": "sess-123",
+        "message": {
+            "role": "assistant", "model": "claude-opus-4-6",
+            "content": [{"type": "text", "text": "Hi there"}],
+            "usage": {
+                "input_tokens": 100, "output_tokens": 20,
+                "cache_read_input_tokens": 5000, "cache_creation_input_tokens": 1000
+            }
+        }
+    }),
+    json.dumps({
+        "uuid": "a3", "type": "user", "timestamp": "2026-03-16T14:01:00",
+        "sessionId": "sess-123",
+        "message": {"role": "user", "content": "Do something"}
+    }),
+    json.dumps({
+        "uuid": "a4", "type": "assistant", "timestamp": "2026-03-16T14:01:10",
+        "sessionId": "sess-123",
+        "message": {
+            "role": "assistant", "model": "claude-opus-4-6",
+            "content": [{"type": "text", "text": "Done"}],
+            "usage": {
+                "input_tokens": 200, "output_tokens": 30,
+                "cache_read_input_tokens": 8000, "cache_creation_input_tokens": 500
+            }
+        }
+    }),
+]
+
+
+def test_parse_session_usage(tmp_path):
+    """Parses transcript JSONL correctly."""
+    p = tmp_path / "sess-123.jsonl"
+    p.write_text("\n".join(TRANSCRIPT_LINES))
+
+    result = parse_session_usage(str(p))
+    assert result.session_id == "sess-123"
+    assert result.primary_model == "claude-opus-4-6"
+    assert result.total_input_tokens == 300
+    assert result.total_output_tokens == 50
+    assert result.total_cache_read == 13000
+    assert result.total_cache_creation == 1500
+    assert result.message_count == 2  # Only assistant messages counted
+    assert result.duration_minutes > 0
+
+
+def test_parse_session_usage_empty(tmp_path):
+    """Empty file → sensible defaults."""
+    p = tmp_path / "empty.jsonl"
+    p.write_text("")
+
+    result = parse_session_usage(str(p))
+    assert result.total_input_tokens == 0
+    assert result.total_output_tokens == 0
+    assert result.message_count == 0
+    assert result.duration_minutes == 0
