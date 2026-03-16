@@ -35,6 +35,13 @@ def _ensure_synced(db: PulseDB) -> None:
     sync_all(db)
 
 
+def _ensure_usage_imported(db: PulseDB) -> None:
+    """Lazy import: import stats-cache.json if changed."""
+    from pulse.usage import import_stats_cache, needs_import
+    if needs_import(db):
+        import_stats_cache(db)
+
+
 def main(argv: list[str] | None = None) -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(prog="pulse", description="Pulse — Claude Code session metrics")
@@ -122,6 +129,11 @@ def main(argv: list[str] | None = None) -> None:
     p_sync = sub.add_parser("sync", help="Sync .md project states into DB")
     p_sync.add_argument("--force", action="store_true", help="Re-sync all files regardless of mtime")
 
+    # usage
+    p_usage = sub.add_parser("usage", help="Show token usage statistics")
+    p_usage.add_argument("--days", type=int, default=7, help="Number of days to show (default: 7)")
+    p_usage.add_argument("--session", help="Session ID for detailed transcript analysis")
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -163,6 +175,8 @@ def main(argv: list[str] | None = None) -> None:
         _cmd_report(args)
     elif args.command == "sync":
         _cmd_sync(args)
+    elif args.command == "usage":
+        _cmd_usage(args)
     else:
         parser.print_help()
 
@@ -647,3 +661,120 @@ def _cmd_sync(args: argparse.Namespace) -> None:
     detail = f" ({', '.join(parts)})" if parts else ""
 
     print(f"  Synced {synced}/{total} projects{detail}")
+
+
+def _cmd_usage(args: argparse.Namespace) -> None:
+    """Show token usage statistics."""
+    from rich.console import Console
+    from rich.table import Table
+    from rich import box as rich_box
+
+    db = PulseDB(_DEFAULT_DB_PATH)
+    _ensure_usage_imported(db)
+
+    if args.session:
+        _show_session_usage(args.session)
+        return
+
+    from pulse.usage import get_daily_usage, get_usage_summary, get_peak_hour
+
+    console = Console()
+    usage = get_daily_usage(db, days=args.days)
+
+    if not usage:
+        console.print("\n  Noch keine Usage-Daten importiert.\n")
+        return
+
+    console.print(f"\n  [bold]Usage (letzte {args.days} Tage)[/bold]\n")
+
+    table = Table(show_header=True, box=rich_box.SIMPLE)
+    table.add_column("Tag", width=12)
+    table.add_column("Messages", width=10, justify="right")
+    table.add_column("Sessions", width=10, justify="right")
+    table.add_column("Tokens", width=12, justify="right")
+
+    for day in usage:
+        tokens = ""
+        if day["tokens_by_model"]:
+            import json as _json
+            total = sum(_json.loads(day["tokens_by_model"]).values())
+            if total >= 1000:
+                tokens = f"{total // 1000}k"
+            else:
+                tokens = str(total)
+
+        table.add_row(
+            day["date"],
+            str(day["message_count"]),
+            str(day["session_count"]),
+            tokens,
+        )
+
+    console.print(table)
+
+    # Summary
+    summary = get_usage_summary(db, days=args.days)
+    if summary["model_mix"]:
+        parts = []
+        for model, pct in sorted(summary["model_mix"].items(), key=lambda x: -x[1]):
+            short = model.split("-")[1].capitalize() if "-" in model else model
+            parts.append(f"{short} {pct:.0f}%")
+        console.print(f"  Model-Mix: {'  '.join(parts)}")
+
+    peak = get_peak_hour()
+    if peak:
+        hour, count = peak
+        console.print(f"  Peak: {hour}:00-{int(hour)+1}:00")
+
+    if summary["total_sessions"] > 0:
+        avg = summary["avg_messages_per_session"]
+        console.print(f"  Durchschnitt: {avg:.0f} msg/session")
+
+    console.print()
+
+
+def _show_session_usage(session_id: str) -> None:
+    """Show detailed usage for a single session from transcript."""
+    from rich.console import Console
+    from pulse.usage import parse_session_usage
+    import json as _json
+
+    db = PulseDB(_DEFAULT_DB_PATH)
+    console = Console()
+
+    # Find transcript path from events
+    row = db.execute(
+        "SELECT raw_json FROM events WHERE session_id=? AND event_type='SessionStart' LIMIT 1",
+        (session_id,),
+    ).fetchone()
+
+    if not row or not row["raw_json"]:
+        console.print(f"\n  Session '{session_id}' nicht gefunden.\n")
+        return
+
+    event_data = _json.loads(row["raw_json"])
+    transcript_path = event_data.get("transcript_path")
+
+    if not transcript_path or not Path(transcript_path).exists():
+        console.print(f"\n  Transcript nicht gefunden fuer Session '{session_id}'.\n")
+        return
+
+    usage = parse_session_usage(transcript_path)
+
+    console.print(f"\n  [bold]Session {session_id[:12]}... ({usage.duration_minutes:.0f} min)[/bold]\n")
+
+    def _fmt(n: int) -> str:
+        if n >= 1_000_000:
+            return f"{n / 1_000_000:.1f}M"
+        if n >= 1000:
+            return f"{n // 1000}k"
+        return str(n)
+
+    console.print(f"  Input:   {_fmt(usage.total_input_tokens)} tokens")
+    console.print(f"  Output:  {_fmt(usage.total_output_tokens)} tokens")
+    console.print(f"  Cache:   {_fmt(usage.total_cache_read)} read / {_fmt(usage.total_cache_creation)} created")
+    if usage.primary_model:
+        console.print(f"  Model:   {usage.primary_model}")
+    if usage.prompts_per_minute > 0:
+        console.print(f"  Rate:    {usage.prompts_per_minute:.1f} prompts/min")
+    console.print()

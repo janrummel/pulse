@@ -214,3 +214,16 @@ def test_parse_session_usage_empty(tmp_path):
     assert result.total_output_tokens == 0
     assert result.message_count == 0
     assert result.duration_minutes == 0
+
+
+from pulse.cli import main
+
+
+def test_cli_usage_command(db, stats_file, capsys, monkeypatch):
+    """pulse usage runs without error."""
+    monkeypatch.setattr("pulse.cli._DEFAULT_DB_PATH", str(db._path))
+    monkeypatch.setattr("pulse.usage._STATS_CACHE_PATH", str(stats_file))
+
+    main(["usage"])
+    captured = capsys.readouterr()
+    assert "Usage" in captured.out or "usage" in captured.out.lower()
