@@ -452,6 +452,24 @@ def _cmd_recap(args: argparse.Namespace) -> None:
         table.add_row("Think-Time", f"{recap['think_time_pct']:.0f}%")
         table.add_row("Dateien", str(len(recap["files_touched"])))
 
+        # Token usage from daily_usage (if available)
+        _ensure_usage_imported(db)
+        day_usage = db.execute(
+            "SELECT tokens_by_model FROM daily_usage WHERE date=?",
+            (recap["date"],),
+        ).fetchone()
+        if day_usage and day_usage["tokens_by_model"]:
+            tokens = json.loads(day_usage["tokens_by_model"])
+            total = sum(tokens.values())
+            if total > 0:
+                grand = f"{total // 1000}k" if total >= 1000 else str(total)
+                parts = []
+                for model, count in sorted(tokens.items(), key=lambda x: -x[1]):
+                    short = model.split("-")[1].capitalize() if "-" in model else model
+                    pct = count / total * 100
+                    parts.append(f"{short} {pct:.0f}%")
+                table.add_row("Token-Verbrauch", f"{grand} ({', '.join(parts)})")
+
         console.print(table)
 
         if recap["tasks_completed"]:
