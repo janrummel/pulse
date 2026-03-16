@@ -50,7 +50,9 @@ CREATE TABLE IF NOT EXISTS projects (
     category TEXT DEFAULT 'tools',
     project_type TEXT DEFAULT 'one-time',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    notes TEXT
+    notes TEXT,
+    md_source_path TEXT,
+    md_last_synced TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -91,6 +93,10 @@ class PulseDB:
             self._conn.execute("ALTER TABLE projects ADD COLUMN category TEXT DEFAULT 'tools'")
         if "project_type" not in columns:
             self._conn.execute("ALTER TABLE projects ADD COLUMN project_type TEXT DEFAULT 'one-time'")
+        if "md_source_path" not in columns:
+            self._conn.execute("ALTER TABLE projects ADD COLUMN md_source_path TEXT")
+        if "md_last_synced" not in columns:
+            self._conn.execute("ALTER TABLE projects ADD COLUMN md_last_synced TEXT")
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         """Execute raw SQL. Use for queries not covered by helper methods."""

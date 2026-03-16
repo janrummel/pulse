@@ -320,6 +320,16 @@ class TestTaskManagement:
         assert done_task["debug_cycles"] == 1
 
 
+class TestMdSyncColumns:
+    def test_projects_has_md_sync_columns(self, db):
+        """New md_source_path and md_last_synced columns exist."""
+        columns = [
+            r[1] for r in db.execute("PRAGMA table_info(projects)").fetchall()
+        ]
+        assert "md_source_path" in columns
+        assert "md_last_synced" in columns
+
+
 class TestSessionManagement:
     def test_upsert_session(self, db):
         db.upsert_session(
