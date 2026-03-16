@@ -20,45 +20,12 @@ from textual.widgets import Footer, Header, Label, ListItem, ListView, Static
 from pulse.analyzer import Analyzer
 from pulse.db import PulseDB
 from pulse.planner import Planner
+from pulse.sync import get_next_step, sync_all
 from pulse import theme
 
 from pulse.config import config as _cfg
 
 _DEFAULT_DB_PATH = _cfg.db_path
-_ORCHESTRATOR_DIR = Path(_cfg.orchestrator_dir)
-
-
-# ── Helpers ────────────────────────────────────────────────────────
-
-def _load_project_context(project_name: str) -> str:
-    """Load next steps from orchestrator project file."""
-    candidates = [
-        _ORCHESTRATOR_DIR / f"{project_name}.md",
-        _ORCHESTRATOR_DIR / f"{project_name.replace('-', '_')}.md",
-    ]
-    for path in candidates:
-        if path.exists():
-            return _extract_next_steps(path)
-    return ""
-
-
-def _extract_next_steps(path: Path) -> str:
-    text = path.read_text()
-    lines = text.split("\n")
-    in_todos = False
-    for line in lines:
-        if "Offene Todos" in line or "offene todos" in line.lower():
-            in_todos = True
-            continue
-        if in_todos:
-            if line.startswith("##") or line.startswith("# "):
-                break
-            stripped = line.strip()
-            if stripped.startswith(("- [ ]", "1.", "2.", "3.", "4.", "5.")):
-                clean = stripped.lstrip("0123456789.-[] ").strip()
-                if clean:
-                    return clean
-    return "Kein naechster Schritt definiert."
 
 
 # ── Project List Item ──────────────────────────────────────────────
@@ -84,6 +51,7 @@ class LauncherView(Static):
 
     def compose(self) -> ComposeResult:
         db = PulseDB(_DEFAULT_DB_PATH)
+        sync_all(db)
         projects = db.execute(
             "SELECT * FROM projects WHERE status != 'done' ORDER BY category, name"
         ).fetchall()
@@ -92,7 +60,7 @@ class LauncherView(Static):
         self._projects = {}
         for p in projects:
             p = dict(p)
-            ctx = _load_project_context(p["name"])
+            ctx = get_next_step(db, p["name"])
             last = theme.time_ago(self._last_event(db, p["path"]))
             item = ProjectItem(p, ctx, last)
             items.append(item)
@@ -360,7 +328,8 @@ class PulseApp(App):
             return
 
         with self.suspend():
-            ctx = _load_project_context(project["name"])
+            db = PulseDB(_DEFAULT_DB_PATH)
+            ctx = get_next_step(db, project["name"])
             print(f"\n  → {project['name']}")
             if ctx and ctx != "Kein naechster Schritt definiert.":
                 print(f"  {ctx}\n")

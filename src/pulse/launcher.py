@@ -18,49 +18,10 @@ from textual.widgets import Footer, Header, Label, ListItem, ListView, Static
 from pulse.analyzer import Analyzer
 from pulse.config import config as _cfg
 from pulse.db import PulseDB
+from pulse.sync import get_next_step, sync_all
 from pulse import theme
 
 _DEFAULT_DB_PATH = _cfg.db_path
-_ORCHESTRATOR_DIR = Path(_cfg.orchestrator_dir)
-
-
-def _load_project_context(project_name: str) -> str:
-    """Load next steps from orchestrator project file."""
-    # Try exact match first, then fuzzy
-    candidates = [
-        _ORCHESTRATOR_DIR / f"{project_name}.md",
-        _ORCHESTRATOR_DIR / f"{project_name.replace('-', '_')}.md",
-    ]
-    for path in candidates:
-        if path.exists():
-            return _extract_next_steps(path)
-    return ""
-
-
-def _extract_next_steps(path: Path) -> str:
-    """Extract open todos from an orchestrator project file."""
-    text = path.read_text()
-    lines = text.split("\n")
-    in_todos = False
-    todos = []
-
-    for line in lines:
-        if "Offene Todos" in line or "offene todos" in line.lower():
-            in_todos = True
-            continue
-        if in_todos:
-            if line.startswith("##") or line.startswith("# "):
-                break
-            stripped = line.strip()
-            if stripped.startswith(("- [ ]", "1.", "2.", "3.", "4.", "5.")):
-                # Clean up the line
-                clean = stripped.lstrip("0123456789.-[] ").strip()
-                if clean:
-                    todos.append(clean)
-
-    if not todos:
-        return "Kein naechster Schritt definiert."
-    return todos[0]
 
 
 def _get_last_session_info(db: PulseDB, project_path: str) -> str:
@@ -205,6 +166,7 @@ class PulseLauncher(App):
         self.projects_data: list[tuple[dict, str, str]] = []
 
     def compose(self) -> ComposeResult:
+        sync_all(self.db)
         yield Header(show_clock=True)
 
         # Load projects
@@ -216,7 +178,7 @@ class PulseLauncher(App):
         items = []
         for p in projects:
             p = dict(p)
-            context = _load_project_context(p["name"])
+            context = get_next_step(self.db, p["name"])
             last = _get_last_session_info(self.db, p["path"])
             self.projects_data.append((p, context, last))
             items.append(ProjectItem(p, context, last))
@@ -261,7 +223,7 @@ class PulseLauncher(App):
             print(f"\n  🫀 Pulse → Starte Claude in {project['name']}...")
             print(f"  Pfad: {project_path}")
 
-            context = _load_project_context(project["name"])
+            context = get_next_step(self.db, project["name"])
             if context and context != "Kein naechster Schritt definiert.":
                 print(f"  Naechster Schritt: {context}")
 
@@ -269,7 +231,7 @@ class PulseLauncher(App):
 
             try:
                 # Build initial prompt with project context
-                next_step = _load_project_context(project["name"])
+                next_step = get_next_step(self.db, project["name"])
                 if next_step and next_step != "Kein naechster Schritt definiert.":
                     initial = (
                         f'Dein aktives Projekt ist "{project["name"]}". '
