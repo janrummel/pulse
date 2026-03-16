@@ -330,6 +330,15 @@ class TestMdSyncColumns:
         assert "md_last_synced" in columns
 
 
+def test_daily_usage_table_exists(db):
+    """daily_usage table is created with schema."""
+    columns = [r[1] for r in db.execute("PRAGMA table_info(daily_usage)").fetchall()]
+    assert "date" in columns
+    assert "message_count" in columns
+    assert "tokens_by_model" in columns
+    assert "imported_at" in columns
+
+
 class TestSessionManagement:
     def test_upsert_session(self, db):
         db.upsert_session(

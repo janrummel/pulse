@@ -15,6 +15,7 @@ _DEFAULTS = {
     "db_path": str(_CONFIG_DIR / "pulse.db"),
     "claude_settings_path": str(Path.home() / ".claude" / "settings.json"),
     "orchestrator_dir": str(Path.home() / ".claude" / "orchestrator" / "projects"),
+    "stats_cache_path": str(Path.home() / ".claude" / "stats-cache.json"),
     "language": "de",
     "dashboard": {
         "refresh_interval": 3.0,
@@ -53,6 +54,10 @@ class PulseConfig:
     @property
     def dashboard_refresh(self) -> float:
         return self._data.get("dashboard", {}).get("refresh_interval", 3.0)
+
+    @property
+    def stats_cache_path(self) -> str:
+        return str(Path(self._data["stats_cache_path"]).expanduser())
 
     def save_defaults(self) -> None:
         """Write default config to disk if no config exists."""

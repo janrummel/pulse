@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS tasks (
     completed_at TEXT,
     notes TEXT
 );
+
+CREATE TABLE IF NOT EXISTS daily_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT UNIQUE NOT NULL,
+    message_count INTEGER DEFAULT 0,
+    session_count INTEGER DEFAULT 0,
+    tool_call_count INTEGER DEFAULT 0,
+    tokens_by_model TEXT,
+    imported_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
