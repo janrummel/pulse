@@ -268,6 +268,32 @@ Yes, MIT licensed. Contributions welcome.
 
 ---
 
+## Development
+
+```bash
+# Clone and install with dev dependencies
+git clone https://github.com/janrummel/pulse.git
+cd pulse
+uv pip install -e ".[dev]"
+
+# Run tests (151 tests, <2s)
+python -m pytest tests/ -v
+
+# Run a specific test module
+python -m pytest tests/test_collector.py -v
+```
+
+## Contributing
+
+Contributions are welcome! Priority areas:
+
+- New metric types (e.g., token cost tracking when Claude Code exposes it)
+- Additional dashboard views
+- Better task detection heuristics
+- Documentation improvements
+
+Please open an issue before submitting large changes. All new features need tests.
+
 ## Requirements
 
 - Python 3.12+
