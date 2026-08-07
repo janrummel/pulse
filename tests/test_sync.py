@@ -270,7 +270,7 @@ def test_sync_creates_project(tmp_path, db):
 
 def test_sync_updates_project(tmp_path, db):
     """Syncing an existing project updates its fields."""
-    db.add_project(name="pulse", path="/Users/jan/Projects/pulse")
+    db.add_project(name="pulse", path="/tmp/projects/pulse")
 
     p = tmp_path / "pulse.md"
     p.write_text(PULSE_MD)
@@ -287,7 +287,7 @@ def test_sync_updates_project(tmp_path, db):
 
 def test_sync_preserves_path(tmp_path, db):
     """Syncing does NOT overwrite the existing project path."""
-    original_path = "/Users/jan/Projects/pulse"
+    original_path = "/tmp/projects/pulse"
     db.add_project(name="pulse", path=original_path)
 
     p = tmp_path / "pulse.md"
